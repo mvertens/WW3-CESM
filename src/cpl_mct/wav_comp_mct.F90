@@ -754,10 +754,16 @@ CONTAINS
       call seq_timemgr_EClockGetData( EClock, prev_ymd=ymd, prev_tod=tod )
 
       ! output every outfreq hours
-      if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
-          histwr = .true.
-      else
-          histwr = seq_timemgr_historyAlarmIsOn(EClock)
+      histwr = seq_timemgr_historyAlarmIsOn(EClock)
+      if (outfreq .gt. 0) then
+          ! gfortran 9.1  was computing mod(hh, outfreq) even when
+          ! it was the second term in an .and. with the first term
+          ! evaluating to .false.; running CESM with DEBUG=TRUE,
+          ! this caused a divide-by-zero error. Splitting the if
+          ! avoids that abort.
+          if (mod(hh, outfreq) .eq. 0 ) then
+              histwr = .true.
+          end if
       end if
 
 
