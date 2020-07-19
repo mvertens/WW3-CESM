@@ -157,7 +157,7 @@
       USE W3IDATMD, ONLY: TW0, WX0, WY0, DT0, TWN, WXN, WYN, DTN
       USE W3IDATMD, ONLY: TIN, ICEI
       USE W3IDATMD, ONLY: TLN, WLEV
-      USE W3IDATMD, ONLY: HML   ! QL, 150525, mixing layer depth
+      USE W3IDATMD, ONLY: HML
       use w3odatmd, only: w3nout, w3seto, naproc, iaproc, napout, naperr,             &
                           nogrd, idout, fnmpre, iostyp
 !/
@@ -246,7 +246,6 @@ CONTAINS
       integer :: dtime_sync        ! integer timestep size
       integer :: start_ymd         ! start date (yyyymmdd)
       integer :: start_tod         ! start time of day (sec)
-      ! QL, 150629, calculating restart interval
       integer :: stop_ymd          ! stop date (yyyymmdd)
       integer :: stop_tod          ! stop time of day (sec)
       integer :: ix, iy
@@ -325,7 +324,6 @@ CONTAINS
 
       !--------------------------------------------------------------------
       ! Initialize run type
-      ! QL, 150525
       !--------------------------------------------------------------------
 
       call seq_infodata_GetData( infodata, start_type=starttype)
@@ -416,11 +414,9 @@ CONTAINS
       !--------------------------------------------------------------------
 
       flags = .false.
-      ! QL, 150525, flags for passing variables from coupler to ww3,
-      !             lev, curr, wind, ice and mixing layer depth on
+      ! flags for passing variables from coupler to ww3,
+      ! lev, curr, wind, ice and mixing layer depth on
       flags(1:5) = .true.
-!      flags(1:4) = .true.   !changed by Adrean (lev,curr,wind,ice on)
-!      flags(3:4) = .true.   !changed by Adrean (wind,ice on)
 
       !--------------------------------------------------------------------
       ! Set time frame
@@ -432,7 +428,7 @@ CONTAINS
       if ( iaproc .eq. napout ) write (ndso,930)
       call shr_sys_flush(ndso)
 
-      ! QL, 150525, initial run or restart run
+      ! initial run or restart run
       if ( runtype .eq. "initial") then
          call seq_timemgr_EClockGetData(EClock, &
               start_ymd=start_ymd, start_tod=start_tod)
@@ -498,22 +494,22 @@ CONTAINS
          odat(5*(j-1)+3) = 0
       end do
 
-      ! QL, 160823, initialize flag for restart
+      ! initialize flag for restart
       rstwr = .false.
-      ! QL, 160601, initialize flag for history file
+      ! initialize flag for history file
       histwr = .false.
 
-      ! QL, 160601, get coupling interval
+      ! get coupling interval
       call seq_timemgr_eclockgetdata(eclock, dtime=dtime_sync )
       !DEBUG
       ! Hardwire gridded output for now
       ! first output time stamp is now read from file
-      ! QL, 150525, 1-5 for history files, 16-20 for restart files
-      !     150629, restart output interval is set to the total time of run
-      !     150823, restart is taken over by rstwr
-      !     160601, output interval is set to coupling interval, so that
-      !             variables calculated in W3IOGO could be updated at
-      !             every coupling interval
+      ! 1-5 for history files, 16-20 for restart files
+      ! restart output interval is set to the total time of run
+      ! restart is taken over by rstwr
+      ! output interval is set to coupling interval, so that
+      ! variables calculated in W3IOGO could be updated at
+      ! every coupling interval
       odat(1) = time(1)     ! YYYYMMDD for first output
       odat(2) = time(2)     ! HHMMSS for first output
       odat(3) = dtime_sync  ! output interval in sec ! changed by Adrean
@@ -559,7 +555,6 @@ CONTAINS
       flgrd(29) = .false. !  29. radiation stresses
       flgrd(30) = .false. !  30. user defined (1)
       flgrd(31) = .false. !  31. user defined (2)
-      ! QL, 150525, new output
       flgrd(32) = .false.  !  32. Stokes drift at z=0
       flgrd(33) = .false.  !  33. Turbulent Langmuir number (La_t)
       flgrd(34) = .false.  !  34. Langmuir number (La_Proj)
@@ -671,13 +666,14 @@ CONTAINS
 
       ! add call to gptl timer
 
-      ! QL, 150823, send initial state to driver
-      ! QL, 160611, initial values for lamult, ustokes and vstokes
+      ! send initial state to driver
+      ! initial values for lamult, ustokes, vstokes and hstokes
+      ! TODO: use hstokes to pass surface layer averaged Langmuir number to POP
       do jsea=1, nseal
           w2x_w%rattr(index_w2x_Sw_lamult,jsea) = 1.
           w2x_w%rattr(index_w2x_Sw_ustokes,jsea) = 0.
           w2x_w%rattr(index_w2x_Sw_vstokes,jsea) = 0.
-          !w2x_w%rattr(index_w2x_Sw_hstokes,jsea) = ??
+          w2x_w%rattr(index_w2x_Sw_hstokes,jsea) = 0.
       enddo
 
       ! end redirection of share output to wav log
@@ -757,11 +753,17 @@ CONTAINS
 
       call seq_timemgr_EClockGetData( EClock, prev_ymd=ymd, prev_tod=tod )
 
-      ! QL, 171107, output every outfreq hours
-      if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
-          histwr = .true.
-      else
-          histwr = seq_timemgr_historyAlarmIsOn(EClock)
+      ! output every outfreq hours
+      histwr = seq_timemgr_historyAlarmIsOn(EClock)
+      if (outfreq .gt. 0) then
+          ! gfortran 9.1  was computing mod(hh, outfreq) even when
+          ! it was the second term in an .and. with the first term
+          ! evaluating to .false.; running CESM with DEBUG=TRUE,
+          ! this caused a divide-by-zero error. Splitting the if
+          ! avoids that abort.
+          if (mod(hh, outfreq) .eq. 0 ) then
+              histwr = .true.
+          end if
       end if
 
 
@@ -774,7 +776,7 @@ CONTAINS
 
       time = time0
 
-      ! QL, 150823, set flag for writing restart file
+      ! set flag for writing restart file
       rstwr = seq_timemgr_RestartAlarmIsOn(EClock)
 
       !--- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -863,7 +865,7 @@ CONTAINS
             ICEI(IX,IY) = x2w0%rattr(index_x2w_si_ifrac,gindex)
          endif
 
-         ! QL, 150525, get mixing layer depth from coupler
+         ! get mixing layer depth from coupler
          if (flags(5)) then
             HML(IX,IY) = max(x2w0%rattr(index_x2w_so_bldepth,gindex), 5.)
          endif
@@ -884,22 +886,23 @@ CONTAINS
       call w3wave ( 1, timen )
 
       ! copy ww3 data to coupling datatype
-      ! QL, 150612, copy enhancement factor, uStokes, vStokes to coupler
+      ! copy enhancement factor, uStokes, vStokes and surface layer Langmuir number to coupler
       do jsea=1, nseal
          isea = iaproc + (jsea-1)*naproc
          IX  = MAPSF(ISEA,1)
          IY  = MAPSF(ISEA,2)
          if (MAPSTA(IY,IX) .eq. 1) then
-             ! QL, 160530, LAMULT now calculated in WW3 (w3iogomd.f90)
+             ! use hstokes to pass LaSL to POP
              w2x_w%rattr(index_w2x_Sw_lamult,jsea) = LAMULT(ISEA)
              w2x_w%rattr(index_w2x_Sw_ustokes,jsea) = USSX(ISEA)
              w2x_w%rattr(index_w2x_Sw_vstokes,jsea) = USSY(ISEA)
+             w2x_w%rattr(index_w2x_Sw_hstokes,jsea) = LASLPJ(ISEA)
           else
              w2x_w%rattr(index_w2x_Sw_lamult,jsea) = 1.
              w2x_w%rattr(index_w2x_Sw_ustokes,jsea) = 0.
              w2x_w%rattr(index_w2x_Sw_vstokes,jsea) = 0.
+             w2x_w%rattr(index_w2x_Sw_hstokes,jsea) = 0.
           endif
-          ! w2x_w%rattr(index_w2x_Sw_hstokes,jsea) = ??
       enddo
 
       !      write(stdout,*) 'wrm tcx8'
@@ -1064,7 +1067,7 @@ CONTAINS
          isea = iaproc + (jsea-1)*naproc
          ix = mapsf(isea,1)
          iy = mapsf(isea,2)
-         ! QL, 150827, should be 1 for all sea point
+         ! should be 1 for all sea point
          !mask = mapsta(iy,ix)
          if (mapsta(iy,ix) .ne. 0) then
             mask = 1.0_r8

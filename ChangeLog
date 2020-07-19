@@ -1,6 +1,15 @@
 ================================================================================
 ww3 ChangeLog
 ================================================================================
+Originator: altuntas
+Date: 10 Jul 2020
+Model: ww3
+Version: ww3_200710
+One-line summary: Pass surface layer Langmuir number to cpl, fix gnu debug mode
+
+M       src/cpl_mct/wav_comp_mct.F90
+
+================================================================================
 Originator: fischer
 Date: 04 Apr 2019
 Model: ww3
