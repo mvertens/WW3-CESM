@@ -552,11 +552,9 @@ contains
     !--------------------------------------------------------------------
 
     flags = .false.
-    ! QL, 150525, flags for passing variables from coupler to ww3,
-    !             lev, curr, wind, ice and mixing layer depth on
+    ! flags for passing variables from coupler to ww3,
+    ! lev, curr, wind, ice and mixing layer depth on
     flags(1:5) = .true.
-    !      flags(1:4) = .true.   !changed by Adrean (lev,curr,wind,ice on)
-    !      flags(3:4) = .true.   !changed by Adrean (wind,ice on)
 
     !--------------------------------------------------------------------
     ! Set time frame
@@ -643,12 +641,6 @@ contains
 
     ! Hardwire gridded output for now
     ! first output time stamp is now read from file
-    ! QL, 150525, 1-5 for history files, 16-20 for restart files
-    !     150629, restart output interval is set to the total time of run
-    !     150823, restart is taken over by rstwr
-    !     160601, output interval is set to coupling interval, so that
-    !             variables calculated in W3IOGO could be updated at
-    !             every coupling interval
     odat(1) = time(1)     ! YYYYMMDD for first output
     odat(2) = time(2)     ! HHMMSS for first output
     odat(3) = dtime_sync  ! output interval in sec ! changed by Adrean
@@ -693,8 +685,6 @@ contains
     flgrd(29) = .false. !  29. radiation stresses
     flgrd(30) = .false. !  30. user defined (1)
     flgrd(31) = .false. !  31. user defined (2)
-
-    ! QL, 150525, new output
     flgrd(32) = .false. !  32. Stokes drift at z=0
     flgrd(33) = .false. !  33. Turbulent Langmuir number (La_t)
     flgrd(34) = .false. !  34. Langmuir number (La_Proj)
@@ -1007,9 +997,17 @@ contains
     !------------
     ! Determine if time to write restart
     !------------
-    if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
+
+    if (outfreq .gt. 0) then
        ! output every outfreq hours
-       histwr = .true.
+       ! gfortran 9.1  was computing mod(hh, outfreq) even when
+       ! it was the second term in an .and. with the first term
+       ! evaluating to .false.; running CESM with DEBUG=TRUE,
+       ! this caused a divide-by-zero error. Splitting the if
+       ! avoids that abort.
+       if ( mod(hh, outfreq) .eq. 0 ) then
+          histwr = .true.
+       end if
     else
        call ESMF_ClockGetAlarm(clock, alarmname='alarm_history', alarm=alarm, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return

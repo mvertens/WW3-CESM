@@ -345,6 +345,7 @@ contains
           if (flags(4)) then
              ICEI(ix,iy) = si_ifrac_global(n) ! ice frac
           endif
+          ! get mixing layer depth from coupler
           if (flags(5)) then
              HML(ix,iy) = max(so_bldepth_global(n), 5.) ! ocn mixing layer depth
           endif
@@ -401,21 +402,23 @@ contains
     call state_getfldptr(exportState, 'Sw_vstokes', sw_vstokes, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ! copy enhancement factor, uStokes, vStokes and surface layer Langmuir number to coupler
     do jsea=1, nseal
        isea = iaproc + (jsea-1)*naproc
        ix  = MAPSF(ISEA,1)
        iy  = MAPSF(ISEA,2)
        if (MAPSTA(iy,ix) .eq. 1) then
-          ! QL, 160530, LAMULT now calculated in WW3 (w3iogomd.f90)
+          ! use hstokes to pass LaSL to POP
           sw_lamult(jsea)  = LAMULT(ISEA)
           sw_ustokes(jsea) = USSX(ISEA)
           sw_vstokes(jsea) = USSY(ISEA)
+          sw_hstokes,jsea) = LASLPJ(ISEA)
        else
           sw_lamult(jsea)  = 1.
           sw_ustokes(jsea) = 0.
           sw_vstokes(jsea) = 0.
+          sw_hstokes,jsea) = 0.
        endif
-       ! sw_hstokes(jsea) = ??
     enddo
 
     ! Fill in the local land points with fill value
