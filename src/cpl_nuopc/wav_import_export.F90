@@ -82,7 +82,7 @@ contains
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_lamult' )
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_ustokes')
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_vstokes')
-   !call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
+    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
 
     do n = 1,fldsFrWav_num
        call NUOPC_Advertise(exportState, standardName=fldsFrWav(n)%stdname, &
@@ -366,7 +366,7 @@ contains
     !---------------------------------------------------------------------------
 
     use shr_const_mod , only : fillvalue=>SHR_CONST_SPVAL
-    use w3adatmd      , only : LAMULT, USSX, USSY
+    use w3adatmd      , only : LAMULT, USSX, USSY, LASLPJ
     use w3odatmd      , only : naproc, iaproc
     use w3gdatmd      , only : nseal, MAPSTA, MAPFS, MAPSF
 
@@ -380,6 +380,7 @@ contains
     real(r8), pointer :: sw_lamult(:)
     real(r8), pointer :: sw_ustokes(:)
     real(r8), pointer :: sw_vstokes(:)
+    real(r8), pointer :: sw_hstokes(:)
     character(len=*), parameter :: subname='(wav_import_export:export_fields)'
     !---------------------------------------------------------------------------
 
@@ -402,6 +403,9 @@ contains
     call state_getfldptr(exportState, 'Sw_vstokes', sw_vstokes, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    call state_getfldptr(exportState, 'Sw_hstokes', sw_hstokes, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
     ! copy enhancement factor, uStokes, vStokes and surface layer Langmuir number to coupler
     do jsea=1, nseal
        isea = iaproc + (jsea-1)*naproc
@@ -412,12 +416,12 @@ contains
           sw_lamult(jsea)  = LAMULT(ISEA)
           sw_ustokes(jsea) = USSX(ISEA)
           sw_vstokes(jsea) = USSY(ISEA)
-          sw_hstokes,jsea) = LASLPJ(ISEA)
+          sw_hstokes(jsea) = LASLPJ(ISEA)
        else
           sw_lamult(jsea)  = 1.
           sw_ustokes(jsea) = 0.
           sw_vstokes(jsea) = 0.
-          sw_hstokes,jsea) = 0.
+          sw_hstokes(jsea) = 0.
        endif
     enddo
 
@@ -427,6 +431,7 @@ contains
        sw_lamult(n)  = fillvalue
        sw_ustokes(n) = fillvalue
        sw_vstokes(n) = fillvalue
+       sw_hstokes(n) = fillvalue
     end do
 
   end subroutine export_fields
