@@ -29,6 +29,10 @@ module wav_import_export
   type (fld_list_type)   :: fldsToWav(fldsMax)
   type (fld_list_type)   :: fldsFrWav(fldsMax)
 
+  ! area correction factors for fluxes send and received from mediator
+  real(r8), allocatable :: mod2med_areacor(:) ! ratios of model areas to input mesh areas
+  real(r8), allocatable :: med2mod_areacor(:) ! ratios of input mesh areas to model areas
+
   integer     ,parameter :: dbug_flag = 0 ! internal debug level
   character(*),parameter :: u_FILE_u = &
        __FILE__
@@ -96,6 +100,10 @@ contains
 
   subroutine realize_fields(gcomp, mesh, flds_scalar_name, flds_scalar_num, rc)
 
+    use w3gdatmd      , only : y0, sy, sx, mapsf, nseal
+    use w3odatmd      , only : naproc, iaproc
+    use shr_const_mod , only : shr_const_pi
+
     ! input/output variables
     type(ESMF_GridComp)            :: gcomp
     type(ESMF_Mesh)                :: mesh
@@ -104,8 +112,17 @@ contains
     integer          , intent(out) :: rc
 
     ! local variables
-    type(ESMF_State)     :: importState
-    type(ESMF_State)     :: exportState
+    type(ESMF_State)      :: importState
+    type(ESMF_State)      :: exportState
+    type(ESMF_Field)      :: lfield
+    integer               :: numOwnedElements
+    integer               :: n,i,ix,iy,isea,jsea   ! indices
+    real(r8), allocatable :: mesh_areas(:)
+    real(r8), allocatable :: model_areas(:)
+    real(r8), pointer     :: dataptr(:)
+    real(r8)              :: lat
+    real(r8), parameter   :: rad2deg = 180.0_r8/shr_const_pi
+    real(r8), parameter   :: deg2rad = shr_const_pi/180.0_r8
     character(len=*), parameter :: subname='(wav_import_export:realize_fields)'
     !---------------------------------------------------------------------------
 
@@ -134,6 +151,47 @@ contains
          mesh=mesh, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ! Determine areas for regridding
+    call ESMF_MeshGet(mesh, numOwnedElements=numOwnedElements, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_StateGet(exportState, itemName=trim(fldsFrWav(2)%stdname), field=lfield, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldRegridGetArea(lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(lfield, farrayPtr=dataptr, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    allocate(mesh_areas(numOwnedElements))
+    mesh_areas(:) = dataptr(:)
+
+    ! Determine model areas
+    allocate(model_areas(numOwnedElements))
+    do jsea = 1,nseal
+       isea = iaproc + (jsea-1)*naproc
+       ix = mapsf(isea,1)
+       iy = mapsf(isea,2)
+       lat = y0 + real(iy-1)*sy
+       model_areas(jsea) = sx*deg2rad*sy*deg2rad*cos(lat*deg2rad)
+    end do
+
+    ! Determine flux correction factors (module variables)
+    allocate (mod2med_areacor(numOwnedElements))
+    allocate (med2mod_areacor(numOwnedElements))
+    do n = 1,numOwnedElements
+       if (model_areas(n) == mesh_areas(n)) then
+          mod2med_areacor(n) = 1._r8
+          med2mod_areacor(n) = 1._r8
+       else
+          mod2med_areacor(n) = model_areas(n) / mesh_areas(n)
+          med2mod_areacor(n) = mesh_areas(n) / model_areas(n)
+          if (abs(mod2med_areacor(n) - 1._r8) > 1.e-13) then
+             write(6,'(a,i8,2x,d21.14,2x)')' AREACOR ww3: n, abs(mod2med_areacor(n)-1)', &
+                  n, abs(mod2med_areacor(n) - 1._r8)
+          end if
+       end if
+    end do
+    deallocate(model_areas)
+    deallocate(mesh_areas)
+
   end subroutine realize_fields
 
 !===============================================================================
@@ -149,7 +207,7 @@ contains
     use w3idatmd    , only: TC0, TCN, TLN, TIN, TW0, TWN, WX0, WY0, WXN, WYN
     use w3odatmd    , only: naproc, iaproc, napout
     use w3wdatmd    , only: time
-    
+
     ! input/output variables
     type(ESMF_GridComp)  :: gcomp
     integer, intent(out) :: rc
@@ -157,7 +215,7 @@ contains
     ! Local variables
     type(ESMF_State)  :: importState
     type(ESMF_VM)     :: vm
-    type(ESMF_Clock)  :: clock 
+    type(ESMF_Clock)  :: clock
     type(ESMF_Time)   :: ETime
     type(ESMF_Field)  :: lfield
     integer           :: ymd, tod
@@ -219,7 +277,7 @@ contains
     time0(2) = hh*10000 + mm*100 + ss
     time = time0
 
-    ! Determine global data 
+    ! Determine global data
 
     call state_getfldptr(importState, 'So_u', so_u, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -299,7 +357,7 @@ contains
     endif
     if (flags(2)) then
        TC0  = time0       ! times for ocn current fields
-       TCN  = timen       
+       TCN  = timen
        CX0  = def_value   ! ocn u current
        CXN  = def_value
        CY0  = def_value   ! ocn v current
