@@ -29,6 +29,10 @@ module wav_import_export
   type (fld_list_type)   :: fldsToWav(fldsMax)
   type (fld_list_type)   :: fldsFrWav(fldsMax)
 
+  ! area correction factors for fluxes send and received from mediator
+  real(r8), allocatable :: mod2med_areacor(:) ! ratios of model areas to input mesh areas
+  real(r8), allocatable :: med2mod_areacor(:) ! ratios of input mesh areas to model areas
+
   integer     ,parameter :: dbug_flag = 0 ! internal debug level
   character(*),parameter :: u_FILE_u = &
        __FILE__
@@ -82,7 +86,7 @@ contains
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_lamult' )
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_ustokes')
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_vstokes')
-   !call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
+    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
 
     do n = 1,fldsFrWav_num
        call NUOPC_Advertise(exportState, standardName=fldsFrWav(n)%stdname, &
@@ -94,24 +98,53 @@ contains
 
 !===============================================================================
 
-  subroutine realize_fields(gcomp, mesh, flds_scalar_name, flds_scalar_num, rc)
+  subroutine realize_fields(gcomp, mesh, flds_scalar_name, flds_scalar_num, ndso, rc)
+
+    use w3gdatmd      , only : y0, sy, sx, mapsf, nseal
+    use w3odatmd      , only : naproc, iaproc, napout
+    use shr_const_mod , only : shr_const_pi
+    use shr_mpi_mod   , only : shr_mpi_min, shr_mpi_max
 
     ! input/output variables
     type(ESMF_GridComp)            :: gcomp
     type(ESMF_Mesh)                :: mesh
     character(len=*) , intent(in)  :: flds_scalar_name
     integer          , intent(in)  :: flds_scalar_num
+    integer          , intent(in)  :: ndso
     integer          , intent(out) :: rc
 
     ! local variables
-    type(ESMF_State)     :: importState
-    type(ESMF_State)     :: exportState
+    type(ESMF_State)      :: importState
+    type(ESMF_State)      :: exportState
+    type(ESMF_Field)      :: lfield
+    type(ESMF_VM)         :: vm
+    integer               :: numOwnedElements
+    integer               :: n,i,ix,iy,isea,jsea   ! indices
+    real(r8), allocatable :: mesh_areas(:)
+    real(r8), allocatable :: model_areas(:)
+    real(r8), pointer     :: dataptr(:)
+    real(r8)              :: lat
+    real(r8), parameter   :: rad2deg = 180.0_r8/shr_const_pi
+    real(r8), parameter   :: deg2rad = shr_const_pi/180.0_r8
+    real(r8)              :: max_mod2med_areacor
+    real(r8)              :: max_med2mod_areacor
+    real(r8)              :: min_mod2med_areacor
+    real(r8)              :: min_med2mod_areacor
+    real(r8)              :: max_mod2med_areacor_glob
+    real(r8)              :: max_med2mod_areacor_glob
+    real(r8)              :: min_mod2med_areacor_glob
+    real(r8)              :: min_med2mod_areacor_glob
+    integer               :: mpi_comm
     character(len=*), parameter :: subname='(wav_import_export:realize_fields)'
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
 
     call NUOPC_ModelGet(gcomp, importState=importState, exportState=exportState, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_GridCompGet(gcomp, vm=vm, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_VMGet(vm, mpiCommunicator=mpi_comm, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call fldlist_realize( &
@@ -134,6 +167,52 @@ contains
          mesh=mesh, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ! Determine areas for regridding
+    call ESMF_MeshGet(mesh, numOwnedElements=numOwnedElements, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_StateGet(exportState, itemName=trim(fldsFrWav(2)%stdname), field=lfield, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldRegridGetArea(lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(lfield, farrayPtr=dataptr, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    allocate(mesh_areas(numOwnedElements))
+    mesh_areas(:) = dataptr(:)
+
+    ! Determine model areas
+    allocate(model_areas(numOwnedElements))
+    allocate(mod2med_areacor(numOwnedElements))
+    allocate(med2mod_areacor(numOwnedElements))
+    mod2med_areacor(:) = 1._r8
+    med2mod_areacor(:) = 1._r8
+    do jsea = 1,nseal
+       isea = iaproc + (jsea-1)*naproc
+       ix = mapsf(isea,1)
+       iy = mapsf(isea,2)
+       lat = y0 + real(iy-1)*sy
+       model_areas(jsea) = sx*deg2rad*sy*deg2rad*cos(lat*deg2rad)
+       mod2med_areacor(jsea) = model_areas(jsea) / mesh_areas(jsea)
+       med2mod_areacor(jsea) = mesh_areas(jsea) / model_areas(jsea)
+    end do
+    deallocate(model_areas)
+    deallocate(mesh_areas)
+
+    min_mod2med_areacor = minval(mod2med_areacor)
+    max_mod2med_areacor = maxval(mod2med_areacor)
+    min_med2mod_areacor = minval(med2mod_areacor)
+    max_med2mod_areacor = maxval(med2mod_areacor)
+    call shr_mpi_max(max_mod2med_areacor, max_mod2med_areacor_glob, mpi_comm)
+    call shr_mpi_min(min_mod2med_areacor, min_mod2med_areacor_glob, mpi_comm)
+    call shr_mpi_max(max_med2mod_areacor, max_med2mod_areacor_glob, mpi_comm)
+    call shr_mpi_min(min_med2mod_areacor, min_med2mod_areacor_glob, mpi_comm)
+
+    if ( iaproc == napout) then
+       write(ndso,'(2A,2g23.15,A )') trim(subname),' :  min_mod2med_areacor, max_mod2med_areacor ',&
+            min_mod2med_areacor_glob, max_mod2med_areacor_glob, 'WW3'
+       write(ndso,'(2A,2g23.15,A )') trim(subname),' :  min_med2mod_areacor, max_med2mod_areacor ',&
+            min_med2mod_areacor_glob, max_med2mod_areacor_glob, 'WW3'
+    end if
+
   end subroutine realize_fields
 
 !===============================================================================
@@ -149,7 +228,7 @@ contains
     use w3idatmd    , only: TC0, TCN, TLN, TIN, TW0, TWN, WX0, WY0, WXN, WYN
     use w3odatmd    , only: naproc, iaproc, napout
     use w3wdatmd    , only: time
-    
+
     ! input/output variables
     type(ESMF_GridComp)  :: gcomp
     integer, intent(out) :: rc
@@ -157,7 +236,7 @@ contains
     ! Local variables
     type(ESMF_State)  :: importState
     type(ESMF_VM)     :: vm
-    type(ESMF_Clock)  :: clock 
+    type(ESMF_Clock)  :: clock
     type(ESMF_Time)   :: ETime
     type(ESMF_Field)  :: lfield
     integer           :: ymd, tod
@@ -219,7 +298,7 @@ contains
     time0(2) = hh*10000 + mm*100 + ss
     time = time0
 
-    ! Determine global data 
+    ! Determine global data
 
     call state_getfldptr(importState, 'So_u', so_u, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -299,7 +378,7 @@ contains
     endif
     if (flags(2)) then
        TC0  = time0       ! times for ocn current fields
-       TCN  = timen       
+       TCN  = timen
        CX0  = def_value   ! ocn u current
        CXN  = def_value
        CY0  = def_value   ! ocn v current
@@ -345,6 +424,7 @@ contains
           if (flags(4)) then
              ICEI(ix,iy) = si_ifrac_global(n) ! ice frac
           endif
+          ! get mixing layer depth from coupler
           if (flags(5)) then
              HML(ix,iy) = max(so_bldepth_global(n), 5.) ! ocn mixing layer depth
           endif
@@ -365,7 +445,7 @@ contains
     !---------------------------------------------------------------------------
 
     use shr_const_mod , only : fillvalue=>SHR_CONST_SPVAL
-    use w3adatmd      , only : LAMULT, USSX, USSY
+    use w3adatmd      , only : LAMULT, USSX, USSY, LASLPJ
     use w3odatmd      , only : naproc, iaproc
     use w3gdatmd      , only : nseal, MAPSTA, MAPFS, MAPSF
 
@@ -379,6 +459,7 @@ contains
     real(r8), pointer :: sw_lamult(:)
     real(r8), pointer :: sw_ustokes(:)
     real(r8), pointer :: sw_vstokes(:)
+    real(r8), pointer :: sw_hstokes(:)
     character(len=*), parameter :: subname='(wav_import_export:export_fields)'
     !---------------------------------------------------------------------------
 
@@ -401,21 +482,26 @@ contains
     call state_getfldptr(exportState, 'Sw_vstokes', sw_vstokes, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    call state_getfldptr(exportState, 'Sw_hstokes', sw_hstokes, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! copy enhancement factor, uStokes, vStokes and surface layer Langmuir number to coupler
     do jsea=1, nseal
        isea = iaproc + (jsea-1)*naproc
        ix  = MAPSF(ISEA,1)
        iy  = MAPSF(ISEA,2)
        if (MAPSTA(iy,ix) .eq. 1) then
-          ! QL, 160530, LAMULT now calculated in WW3 (w3iogomd.f90)
+          ! use hstokes to pass LaSL to POP
           sw_lamult(jsea)  = LAMULT(ISEA)
           sw_ustokes(jsea) = USSX(ISEA)
           sw_vstokes(jsea) = USSY(ISEA)
+          sw_hstokes(jsea) = LASLPJ(ISEA)
        else
           sw_lamult(jsea)  = 1.
           sw_ustokes(jsea) = 0.
           sw_vstokes(jsea) = 0.
+          sw_hstokes(jsea) = 0.
        endif
-       ! sw_hstokes(jsea) = ??
     enddo
 
     ! Fill in the local land points with fill value
@@ -424,6 +510,7 @@ contains
        sw_lamult(n)  = fillvalue
        sw_ustokes(n) = fillvalue
        sw_vstokes(n) = fillvalue
+       sw_hstokes(n) = fillvalue
     end do
 
   end subroutine export_fields

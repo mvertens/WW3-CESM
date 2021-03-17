@@ -192,6 +192,8 @@ module wav_comp_nuopc
   private ! except
 
   public  :: SetServices
+  public  :: SetVM
+
   private :: InitializeP0
   private :: InitializeAdvertise
   private :: InitializeRealize
@@ -550,11 +552,9 @@ contains
     !--------------------------------------------------------------------
 
     flags = .false.
-    ! QL, 150525, flags for passing variables from coupler to ww3,
-    !             lev, curr, wind, ice and mixing layer depth on
+    ! flags for passing variables from coupler to ww3,
+    ! lev, curr, wind, ice and mixing layer depth on
     flags(1:5) = .true.
-    !      flags(1:4) = .true.   !changed by Adrean (lev,curr,wind,ice on)
-    !      flags(3:4) = .true.   !changed by Adrean (wind,ice on)
 
     !--------------------------------------------------------------------
     ! Set time frame
@@ -641,12 +641,6 @@ contains
 
     ! Hardwire gridded output for now
     ! first output time stamp is now read from file
-    ! QL, 150525, 1-5 for history files, 16-20 for restart files
-    !     150629, restart output interval is set to the total time of run
-    !     150823, restart is taken over by rstwr
-    !     160601, output interval is set to coupling interval, so that
-    !             variables calculated in W3IOGO could be updated at
-    !             every coupling interval
     odat(1) = time(1)     ! YYYYMMDD for first output
     odat(2) = time(2)     ! HHMMSS for first output
     odat(3) = dtime_sync  ! output interval in sec ! changed by Adrean
@@ -691,8 +685,6 @@ contains
     flgrd(29) = .false. !  29. radiation stresses
     flgrd(30) = .false. !  30. user defined (1)
     flgrd(31) = .false. !  31. user defined (2)
-
-    ! QL, 150525, new output
     flgrd(32) = .false. !  32. Stokes drift at z=0
     flgrd(33) = .false. !  33. Turbulent Langmuir number (La_t)
     flgrd(34) = .false. !  34. Langmuir number (La_Proj)
@@ -869,7 +861,8 @@ contains
     ! Realize the actively coupled fields
     !--------------------------------------------------------------------
 
-    call realize_fields(gcomp, mesh=Emesh, flds_scalar_name=flds_scalar_name, flds_scalar_num=flds_scalar_num, rc=rc)
+    call realize_fields(gcomp, mesh=Emesh, flds_scalar_name=flds_scalar_name, flds_scalar_num=flds_scalar_num, &
+         ndso=ndso, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !--------------------------------------------------------------------
@@ -1005,9 +998,17 @@ contains
     !------------
     ! Determine if time to write restart
     !------------
-    if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
+
+    if (outfreq .gt. 0) then
        ! output every outfreq hours
-       histwr = .true.
+       ! gfortran 9.1  was computing mod(hh, outfreq) even when
+       ! it was the second term in an .and. with the first term
+       ! evaluating to .false.; running CESM with DEBUG=TRUE,
+       ! this caused a divide-by-zero error. Splitting the if
+       ! avoids that abort.
+       if ( mod(hh, outfreq) .eq. 0 ) then
+          histwr = .true.
+       end if
     else
        call ESMF_ClockGetAlarm(clock, alarmname='alarm_history', alarm=alarm, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1090,6 +1091,7 @@ contains
     type(ESMF_Clock)         :: mclock, dclock
     type(ESMF_Time)          :: mcurrtime, dcurrtime
     type(ESMF_Time)          :: mstoptime
+    type(ESMF_Time)          :: mstarttime
     type(ESMF_TimeInterval)  :: mtimestep, dtimestep
     character(len=256)       :: cvalue
     character(len=256)       :: restart_option ! Restart option units
@@ -1139,6 +1141,9 @@ contains
 
     if (alarmCount == 0) then
 
+       call ESMF_ClockGet(mclock, startTime=mStartTime,  rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
        call ESMF_GridCompGet(gcomp, name=name, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
        call ESMF_LogWrite(subname//'setting alarms for' // trim(name), ESMF_LOGMSG_INFO)
@@ -1160,7 +1165,7 @@ contains
        call alarmInit(mclock, restart_alarm, restart_option, &
             opt_n   = restart_n,           &
             opt_ymd = restart_ymd,         &
-            RefTime = mcurrTime,           &
+            RefTime = mCurrTime,           &
             alarmname = 'alarm_restart', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
@@ -1184,38 +1189,38 @@ contains
        call alarmInit(mclock, stop_alarm, stop_option, &
             opt_n   = stop_n,           &
             opt_ymd = stop_ymd,         &
-            RefTime = mcurrTime,           &
+            RefTime = mCurrTime,       &
             alarmname = 'alarm_stop', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
        call ESMF_AlarmSet(stop_alarm, clock=mclock, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+       !----------------
+       ! History alarm
+       !----------------
+       call NUOPC_CompAttributeGet(gcomp, name="history_option", value=history_option, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       call NUOPC_CompAttributeGet(gcomp, name="history_n", value=cvalue, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       read(cvalue,*) history_n
+
+       call NUOPC_CompAttributeGet(gcomp, name="history_ymd", value=cvalue, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       read(cvalue,*) history_ymd
+
+       call alarmInit(mclock, history_alarm, history_option, &
+            opt_n   = history_n,           &
+            opt_ymd = history_ymd,         &
+            RefTime = mStartTime,          &
+            alarmname = 'alarm_history', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       call ESMF_AlarmSet(history_alarm, clock=mclock, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
     end if
-
-    !----------------
-    ! History alarm
-    !----------------
-    call NUOPC_CompAttributeGet(gcomp, name="history_option", value=history_option, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call NUOPC_CompAttributeGet(gcomp, name="history_n", value=cvalue, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    read(cvalue,*) history_n
-
-    call NUOPC_CompAttributeGet(gcomp, name="history_ymd", value=cvalue, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    read(cvalue,*) history_ymd
-
-    call alarmInit(mclock, history_alarm, history_option, &
-         opt_n   = history_n,           &
-         opt_ymd = history_ymd,         &
-         RefTime = mcurrTime,           &
-         alarmname = 'alarm_history', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call ESMF_AlarmSet(history_alarm, clock=mclock, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !--------------------------------
     ! Advance model clock to trigger alarms then reset model clock back to currtime
