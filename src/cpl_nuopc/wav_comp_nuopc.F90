@@ -152,6 +152,7 @@ module wav_comp_nuopc
   !/ ------------------------------------------------------------------- /
   
   use w3gdatmd
+!  use w3gdatmd              , only: NX, NY
   use w3wdatmd              , only: time, w3ndat, w3dimw, w3setw
   use w3adatmd
   !HK flags is now inflags1
@@ -159,9 +160,8 @@ module wav_comp_nuopc
   use w3idatmd              , only: TC0, CX0, CY0, TCN, CXN, CYN !HK, NX, NY
   use w3idatmd              , only: TW0, WX0, WY0, DT0, TWN, WXN, WYN, DTN
   use w3idatmd              , only: TIN, ICEI, TLN, WLEV, HML
-  use w3odatmd              , only: w3nout, w3seto, naproc, iaproc, napout, naperr
+  use w3odatmd              , only: w3nout, w3seto, naproc, iaproc, napout, naperr, nds !cmb
   use w3odatmd              , only: idout, fnmpre, iostyp, nogrp, ngrpp, noge !HK
-  use w3gdatmd              , only: NX, NY
   use w3initmd
   use w3wavemd
   use w3iopomd
@@ -184,9 +184,10 @@ module wav_comp_nuopc
   use shr_mpi_mod           , only : shr_mpi_bcast
   use shr_kind_mod          , only : r8=>shr_kind_r8, i8=>shr_kind_i8, cl=>shr_kind_cl, cs=>shr_kind_cs
   use shr_file_mod          , only : shr_file_getLogUnit, shr_file_setLogUnit, shr_file_getunit
-  use shr_cal_mod           , only : shr_cal_ymd2date
+  use shr_cal_mod           , only : shr_cal_ymd2date, shr_cal_advDateInt
   use wav_import_export     , only : advertise_fields, realize_fields, import_fields, export_fields
   use wav_import_export     , only : state_getfldptr
+  use wav_import_export     , only : wav_coupling_to_cice, wav_coupling_to_mom
   use wav_shr_methods       , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit
   use wav_shr_methods       , only : set_component_logging, get_component_instance, log_clock_advance
 
@@ -399,6 +400,7 @@ contains
     integer                        :: unitn            ! namelist unit number
     integer                        :: ndso, ndse, nds(13), ntrace(2), time0(2)
     integer                        :: timen(2), nh(4), iprt(6)
+    integer                        :: J0  ! CMB
     integer                        :: odat(35) !HK odat is 35
     integer                        :: i,j,npts
     integer                        :: ierr
@@ -413,10 +415,10 @@ contains
     integer, allocatable           :: gindex_sea(:)
     integer, allocatable           :: gindex(:) 
     logical                        :: prtfrm, flt
-    logical                        :: flgrd(nogrp,ngrpp) !HK flags for gridded output
-    logical                        :: flgrd2(nogrp,ngrpp) !HK flags for coupling output
-    logical                        :: flg(nogrp)  !HK  flags for whole group?
-    logical                        :: flg2(nogrp) !HK  flags for whole group?
+    logical                        :: flgrd(nogrp,ngrpp)  !flags for gridded output
+    logical                        :: flgrd2(nogrp,ngrpp) !flags for coupling output
+    logical                        :: flg(nogrp)          !flags for whole group?, probably eliminated now
+    logical                        :: flg2(nogrp)         !flags for whole group?
     character(len=23)              :: dtme21
     integer                        :: iam, mpi_comm
     character(len=10), allocatable :: pnames(:)
@@ -469,13 +471,10 @@ contains
     !
     ! The following units are referenced in module w3wavemd for output
     ! NDS( 6) ! OUTPUT DATA: restart(N).ww3 file (model restart) unit number
-    ! NDS( 7) ! unit for output for FLOUT(1) flag
-    ! NDS( 8) ! unit for output for FLOUT(2) flag
-    ! NDS(11) ! unit for output for FLOUT(3) flag
-    ! NDS(12) ! unit for output for FLOUT(3) flag
-    ! NDS(13) ! unit for output for FLOUT(6) flag
-    ! NDS(10) ! unit for output for FLOUT(5) flag
-
+    ! NDS( 7) ! unit for output for FLOUT(1) flag   out_grd grid unformmatted output
+    ! NDS( 8) ! unit for output for FLOUT(2) flag   point unformmatted output
+    ! etc through 13
+    !
     !----------------------------------------------------------------------------
     ! determine instance information
     !----------------------------------------------------------------------------
@@ -553,25 +552,35 @@ contains
     endif
 
     !--------------------------------------------------------------------
-    ! Define input fields
+    ! Define input fields inflags1 and inflags2 settings
     !--------------------------------------------------------------------
 
-    inflags1 = .false.
-    ! QL, 150525, flags for passing variables from coupler to ww3,
-    !             lev, curr, wind, ice and mixing layer depth on
+    !  fllev   inflags1(1)  flag for water level input.
+    !  flcur   inflags1(2)  flag for current input.
+    !  flwind  inflags1(3)  flag for wind input.
+    !  flice   inflags1(4)  flag for ice input (ice fraction)
+    !  flhml   inflags1(5)  flag for mixed layer depth input. ql, 150525 hk
+
+    !  inflags1 array consolidating the above four flags, as well asfour additional data flags.
+    !  inflags2 like inflags1 but does *not* get changed when model reads last record of ice.ww3
+    
+    ! flags for passing variables from coupler to ww3, lev, curr, wind, ice and mixing layer depth on
+    inflags1(:) = .false.
     inflags1(1:5) = .true.
-    !      flags(1:4) = .true.   !changed by Adrean (lev,curr,wind,ice on)
-    !      flags(3:4) = .true.   !changed by Adrean (wind,ice on)
 
-    ! LR - I don't understand the difference between inflags1 and inflags2
-    ! I am setting them both here to get thickness and floe size import to waves
-    ! and to turn on attenuation
-    inflags1(-7) = .true. ! LR thickness 
-    inflags1(-3) = .true. ! LR floe size 
-    inflags2(-7) = .true. ! LR thickness
-    inflags2(-3) = .true. ! LR floe size
+    if (wav_coupling_to_cice) then
+       inflags1(-7) = .true. ! LR ice thickness 
+       inflags1(-3) = .true. ! LR ice floe size 
+       
+       ! LR - I don't understand the difference between inflags1 and inflags2
+       ! I am setting them both here to get thickness and floe size import to waves
+       ! and to turn on attenuation
+       inflags2(-7) = .true. ! LR thickness
+       inflags2(-3) = .true. ! LR floe size
 
-    inflags2(4) = .true.  ! LR
+       inflags2( 4) = .true. ! LR ????
+    end if
+
     !--------------------------------------------------------------------
     ! Set time frame
     !--------------------------------------------------------------------
@@ -616,6 +625,7 @@ contains
 
     call stme21 ( time0 , dtme21 )
     if ( iaproc .eq. napout ) write (ndso,931) dtme21
+    if ( iaproc .eq. napout ) write (ndso,*) 'start_ymd, stop_ymd = ',start_ymd, stop_ymd
     call shr_sys_flush(ndso)
     time = time0
 
@@ -638,14 +648,17 @@ contains
     !                     1-5  Data for OTYPE = 1; gridded fields.
     !                     6-10 Id.  for OTYPE = 2; point output.
     !                    11-15 Id.  for OTYPE = 3; track point output.
-    !                    16-20 Id.  for OTYPE = 4; restart files.
+    !                    16-20 Id.  for OTYPE = 4; restart files. (CMB I do not think this is right)
     !                    21-25 Id.  for OTYPE = 5; boundary data.
+    !                    26-30 Id.  for OTYPE = 6; ?
+    !                    31-35 Id.  for OTYPE = 7; coupled fields
     ! FLGRD   L.A.   I   Flags for gridded output.
     ! NPT     Int.   I   Number of output points
     ! X/YPT   R.A.   I   Coordinates of output points.
     ! PNAMES  C.A.   I   Output point names.
 
-    do j=1, 6
+    ! CMB changed odat so all 35 values are initialized here
+    do j=1, 7
        odat(5*(j-1)+3) = 0
     end do
 
@@ -663,214 +676,149 @@ contains
     !     160601, output interval is set to coupling interval, so that
     !             variables calculated in W3IOGO could be updated at
     !             every coupling interval
-    odat(1) = time(1)     ! YYYYMMDD for first output
-    odat(2) = time(2)     ! HHMMSS for first output
-    odat(3) = dtime_sync  ! output interval in sec ! changed by Adrean
-    odat(4) = 99990101    ! YYYYMMDD for last output
-    odat(5) = 0           ! HHMMSS for last output
-    odat(16) = time(1)    ! YYYYMMDD for first output
-    odat(17) = time(2)    ! HHMMSS for first output
-    odat(18) = dtime_sync ! output interval in sec
-    odat(19) = 99990101   ! YYYYMMDD for last output
-    odat(20) = 0          ! HHMMSS for last output
+    ! CMB changed odat so all 35 values are set, only permitting one frequency controlled by histwr
+    do J =1,7
+       J0 = (j-1)*5
+       odat(J0+1) = time(1)     ! YYYYMMDD for first output
+       odat(J0+2) = time(2)     ! HHMMSS for first output
+       odat(J0+3) = dtime_sync  ! output interval in sec ! changed by Adrean
+       odat(J0+4) = 99990101    ! YYYYMMDD for last output
+       odat(J0+5) = 0           ! HHMMSS for last output
+    end do
 
-!HK --------------- start 2D version -----------------
-    !HK output index is now a in a 2D array
+    ! output index is now a in a 2D array
     ! IDOUT(NOGRP,NGRPP)  
-    !    NOGRP = number of output field groups
-    !    NGRPP = Max num of parameters per output
-    !    NOGE(NOGRP) = number of output group elements
+    !   NOGRP = number of output field groups
+    !   NGRPP = Max num of parameters per output
+    !   NOGE(NOGRP) = number of output group elements
 
-!HK 2D version for ww3 6.07
-! 1) Forcing fields
-!
-!
-      flgrd( 1, 1)  = .false. ! Water depth       
-      flgrd( 1, 2)  = .false. ! Current vel.       
-      flgrd( 1, 3)  = .true. ! Wind speed
-      flgrd( 1, 4)  = .false. ! Air-sea temp. dif.  
-      flgrd( 1, 5)  = .false. ! Water level         
-      flgrd( 1, 6)  = .false. ! Ice concentration   
-      flgrd( 1, 7)  = .false. ! Iceberg damp coeffic
+    flgrd(:,:)  = .false.   ! gridded fields
+    flgrd2(:,:) = .false.   ! coupled fields, w3init w3iog are not ready to deal with these yet
 
-! 2) Standard mean wave parameters
-!
-!
-      flgrd( 2, 1)  = .true. ! Wave height         
-      flgrd( 2, 2)  = .false. ! Mean wave length    
-      flgrd( 2, 3)  = .true. ! Mean wave period(+2)
-      flgrd( 2, 4)  = .true. ! Mean wave period(-1)
-      flgrd( 2, 5)  = .true. ! Mean wave period(+1)
-      flgrd( 2, 6)  = .false. ! Peak frequency      
-      flgrd( 2, 7)  = .false. ! Mean wave dir. a1b1 
-      flgrd( 2, 8)  = .false. ! Mean dir. spr. a1b1 
-      flgrd( 2, 9)  = .false. ! Peak direction      
-      flgrd( 2, 10)  = .false. !Infragravity height
-      flgrd( 2, 11)  = .false. !Space-Time Max E   
-      flgrd( 2, 12)  = .false. !Space-Time Max Std 
-      flgrd( 2, 13)  = .false. !Space-Time Hmax    
-      flgrd( 2, 14)  = .false. !Spc-Time Hmax^crest
-      flgrd( 2, 15)  = .false. !STD Space-Time Hmax
-      flgrd( 2, 16)  = .false. !STD ST Hmax^crest  
-      flgrd( 2, 17)  = .false. !Dominant wave bT   
+    ! 1) Forcing fields
+    flgrd( 1, 1)  = .false. ! Water depth       
+    flgrd( 1, 2)  = .false. ! Current vel.       
+    flgrd( 1, 3)  = .true.  ! Wind speed
+    flgrd( 1, 4)  = .false. ! Air-sea temp. dif.  
+    flgrd( 1, 5)  = .false. ! Water level         
+    flgrd( 1, 6)  = .true.  ! Ice concentration     !MV - this was changed by CC - do we want this?
+    flgrd( 1, 7)  = .false. ! Iceberg damp coeffic   
 
-! 3) Frequency-dependent standard parameters
-!
-!
-!HK These were not set to true in the previous CESM version
-!HK whether the 1D Freq. Spectrum gets allocated is decided 
-!HK in the grid_inp file
-!HK ~/ww3_toolbox/grids/grid_inp/ww3_grid.inp.ww3a
-!HK namelist section:   &OUTS E3D = 1 /
-      flgrd( 3, 1)  = .true.  !1D Freq. Spectrum  !HK EF 
-      flgrd( 3, 2)  = .false. !Mean wave dir. a1b1 
-      flgrd( 3, 3)  = .false. !Mean dir. spr. a1b1 
-      flgrd( 3, 4)  = .false. !Mean wave dir. a2b2 
-      flgrd( 3, 5)  = .false. !Mean dir. spr. a2b2 
-      flgrd( 3, 6)  = .false. !Wavenumber array   '
+    ! 2) Standard mean wave parameters
+    flgrd( 2, 1)  = .true.  ! Wave height         
+    flgrd( 2, 2)  = .false. ! Mean wave length    
+    flgrd( 2, 3)  = .true.  ! Mean wave period(+2)
+    flgrd( 2, 4)  = .true.  ! Mean wave period(-1)
+    flgrd( 2, 5)  = .true.  ! Mean wave period(+1)
+    flgrd( 2, 6)  = .true.  ! Peak frequency        !MV - changed by CC - do we want this?
+    flgrd( 2, 7)  = .true.  ! Mean wave dir. a1b1   !MV - changed by CC - do we want this?
+    flgrd( 2, 8)  = .false. ! Mean dir. spr. a1b1 
+    flgrd( 2, 9)  = .false. ! Peak direction      
+    flgrd( 2, 10) = .false. ! Infragravity height
+    flgrd( 2, 11) = .false. ! Space-Time Max E   
+    flgrd( 2, 12) = .false. ! Space-Time Max Std 
+    flgrd( 2, 13) = .false. ! Space-Time Hmax    
+    flgrd( 2, 14) = .false. ! Spc-Time Hmax^crest
+    flgrd( 2, 15) = .false. ! STD Space-Time Hmax
+    flgrd( 2, 16) = .false. ! STD ST Hmax^crest  
+    flgrd( 2, 17) = .false. ! Dominant wave bT   
 
-! 4) Spectral Partitions parameters
-!
-!
-      flgrd( 4, 1)  =  .false. !Part. wave height   '
-      flgrd( 4, 2)  =  .false. !Part. peak period   '
-      flgrd( 4, 3)  =  .false. !Part. peak wave len.'
-      flgrd( 4, 4)  =  .false. !Part. mean direction'
-      flgrd( 4, 5)  =  .false. !Part. dir. spread   '
-      flgrd( 4, 6)  =  .false. !Part. wind sea frac.'
-      flgrd( 4, 7)  =  .false. !Part. peak direction'
-      flgrd( 4, 8)  =  .false. !Part. peakedness    '
-      flgrd( 4, 9)  =  .false. !Part. peak enh. fac.'
-      flgrd( 4,10)  =  .false. !Part. gaussian width'
-      flgrd( 4,11)  =  .false. !Part. spectral width'
-      flgrd( 4,12)  =  .false. !Part. mean per. (-1)'
-      flgrd( 4,13)  =  .false. !Part. mean per. (+1)'
-      flgrd( 4,14)  =  .false. !Part. mean per. (+2)'
-      flgrd( 4,15)  =  .false. !Part. peak density  '
-      flgrd( 4,16)  =  .false. !Total wind sea frac.'
-      flgrd( 4,17)  =  .false. !Number of partitions'
+    ! 3) Frequency-dependent standard parameters
+    !HK These were not set to true in the previous CESM version
+    !HK whether the 1D Freq. Spectrum gets allocated is decided 
+    !HK in the grid_inp file
+    !HK ~/ww3_toolbox/grids/grid_inp/ww3_grid.inp.ww3a
+    !HK namelist section:   &OUTS E3D = 1 /
+    flgrd( 3, 1)  = .true.  !1D Freq. Spectrum  !HK EF 
+    flgrd( 3, 2)  = .false. !Mean wave dir. a1b1 
+    flgrd( 3, 3)  = .false. !Mean dir. spr. a1b1 
+    flgrd( 3, 4)  = .false. !Mean wave dir. a2b2 
+    flgrd( 3, 5)  = .false. !Mean dir. spr. a2b2 
+    flgrd( 3, 6)  = .false. !Wavenumber array   '
 
-! 5) Atmosphere-waves layer
-!
-!
-      flgrd( 5, 1)  = .false. !Friction velocity   '
-      flgrd( 5, 2)  = .false. !Charnock parameter  '
-      flgrd( 5, 3)  = .false. !Energy flux         '
-      flgrd( 5, 4)  = .false. !Wind-wave enrgy flux'
-      flgrd( 5, 5)  = .false. !Wind-wave net mom. f'
-      flgrd( 5, 6)  = .false. !Wind-wave neg.mom.f.'
-      flgrd( 5, 7)  = .false. !Whitecap coverage   '
-      flgrd( 5, 8)  = .false. !Whitecap mean thick.'
-      flgrd( 5, 9)  = .false. !Mean breaking height'
-      flgrd( 5,10)  = .false. !Dominant break prob '
-      flgrd( 5,11)  = .false. !Breaker passage rate'
+    ! 4) Spectral Partitions parameters
+    flgrd( 4, 1)  =  .false. !Part. wave height   '
+    flgrd( 4, 2)  =  .false. !Part. peak period   '
+    flgrd( 4, 3)  =  .false. !Part. peak wave len.'
+    flgrd( 4, 4)  =  .false. !Part. mean direction'
+    flgrd( 4, 5)  =  .false. !Part. dir. spread   '
+    flgrd( 4, 6)  =  .false. !Part. wind sea frac.'
+    flgrd( 4, 7)  =  .false. !Part. peak direction'
+    flgrd( 4, 8)  =  .false. !Part. peakedness    '
+    flgrd( 4, 9)  =  .false. !Part. peak enh. fac.'
+    flgrd( 4,10)  =  .false. !Part. gaussian width'
+    flgrd( 4,11)  =  .false. !Part. spectral width'
+    flgrd( 4,12)  =  .false. !Part. mean per. (-1)'
+    flgrd( 4,13)  =  .false. !Part. mean per. (+1)'
+    flgrd( 4,14)  =  .false. !Part. mean per. (+2)'
+    flgrd( 4,15)  =  .false. !Part. peak density  '
+    flgrd( 4,16)  =  .false. !Total wind sea frac.'
+    flgrd( 4,17)  =  .false. !Number of partitions'
 
-! 6) Wave-ocean layer
-!
-!
-      flgrd( 6, 1)  = .false. !'Radiation stresses  '
-      flgrd( 6, 2)  = .false. !'Wave-ocean mom. flux'
-      flgrd( 6, 3)  = .false. !'wave ind p Bern Head'
-      flgrd( 6, 4)  = .false. !'Wave-ocean TKE  flux'
-      flgrd( 6, 5)  = .false. !'Stokes transport    '
-      flgrd( 6, 6)  = .false. !'Stokes drift at z=0 '
-      flgrd( 6, 7)  = .false. !'2nd order pressure  '
-      flgrd( 6, 8)  = .false. !'Stokes drft spectrum'
-      flgrd( 6, 9)  = .false. !'2nd ord press spectr'
-      flgrd( 6,10)  = .false. !'Wave-ice mom. flux  '
-      flgrd( 6,11)  = .false. !'Wave-ice energy flux'
-      flgrd( 6,12)  = .false. !'Split Surface Stokes'
+    ! 5) Atmosphere-waves layer
+    flgrd( 5, 1)  = .false. !Friction velocity   '
+    flgrd( 5, 2)  = .false. !Charnock parameter  '
+    flgrd( 5, 3)  = .false. !Energy flux         '
+    flgrd( 5, 4)  = .false. !Wind-wave enrgy flux'
+    flgrd( 5, 5)  = .false. !Wind-wave net mom. f'
+    flgrd( 5, 6)  = .false. !Wind-wave neg.mom.f.'
+    flgrd( 5, 7)  = .false. !Whitecap coverage   '
+    flgrd( 5, 8)  = .false. !Whitecap mean thick.'
+    flgrd( 5, 9)  = .false. !Mean breaking height'
+    flgrd( 5,10)  = .false. !Dominant break prob '
+    flgrd( 5,11)  = .false. !Breaker passage rate'
 
-!
-! 7) Wave-bottom layer
-!
-!
-      flgrd( 7, 1)  = .false. !'Bottom rms ampl.    '
-      flgrd( 7, 2)  = .false. !'Bottom rms velocity '
-      flgrd( 7, 3)  = .false. !'Bedform parameters  '
-      flgrd( 7, 4)  = .false. !'Energy diss. in WBBL'
-      flgrd( 7, 5)  = .false. !'Moment. loss in WBBL'
+    ! 6) Wave-ocean layer
+    flgrd( 6, 1)  = .false. !'Radiation stresses  '
+    flgrd( 6, 2)  = .false. !'Wave-ocean mom. flux'
+    flgrd( 6, 3)  = .false. !'wave ind p Bern Head'
+    flgrd( 6, 4)  = .false. !'Wave-ocean TKE  flux'
+    flgrd( 6, 5)  = .false. !'Stokes transport    '
+    flgrd( 6, 6)  = .false. !'Stokes drift at z=0 '
+    flgrd( 6, 7)  = .false. !'2nd order pressure  '
+    flgrd( 6, 8)  = .false. !'Stokes drft spectrum'
+    flgrd( 6, 9)  = .false. !'2nd ord press spectr'
+    flgrd( 6,10)  = .false. !'Wave-ice mom. flux  '
+    flgrd( 6,11)  = .false. !'Wave-ice energy flux'
+    flgrd( 6,12)  = .false. !'Split Surface Stokes'
 
-! 8) Spectrum parameters
-!
-!
-      flgrd( 8, 1)  = .false. !'Mean square slopes  '
-      flgrd( 8, 2)  = .false. !'Phillips tail const'
-      flgrd( 8, 3)  = .false. !'Slope direction     '
-      flgrd( 8, 4)  = .false. !'Tail slope direction'
-      flgrd( 8, 5)  = .false. !'Goda peakedness parm'
+    ! 7) Wave-bottom layer
+    flgrd( 7, 1)  = .false. !'Bottom rms ampl.    '
+    flgrd( 7, 2)  = .false. !'Bottom rms velocity '
+    flgrd( 7, 3)  = .false. !'Bedform parameters  '
+    flgrd( 7, 4)  = .false. !'Energy diss. in WBBL'
+    flgrd( 7, 5)  = .false. !'Moment. loss in WBBL'
 
-! 9) Numerical diagnostics
-!
-!
-      flgrd( 9, 1)  = .false. !'Avg. time step.     '
-      flgrd( 9, 2)  = .false. !'Cut-off freq.       '
-      flgrd( 9, 3)  = .false. !'Maximum spatial CFL '
-      flgrd( 9, 4)  = .false. !'Maximum angular CFL '
-      flgrd( 9, 5)  = .false. !'Maximum k advect CFL'
+    ! 8) Spectrum parameters
+    flgrd( 8, 1)  = .false. !'Mean square slopes  '
+    flgrd( 8, 2)  = .false. !'Phillips tail const'
+    flgrd( 8, 3)  = .false. !'Slope direction     '
+    flgrd( 8, 4)  = .false. !'Tail slope direction'
+    flgrd( 8, 5)  = .false. !'Goda peakedness parm'
 
-! 10) is user defined
-!HK ----------------- end 2D version -----------------
+    ! 9) Numerical diagnostics
+    flgrd( 9, 1)  = .false. !'Avg. time step.     '
+    flgrd( 9, 2)  = .false. !'Cut-off freq.       '
+    flgrd( 9, 3)  = .false. !'Maximum spatial CFL '
+    flgrd( 9, 4)  = .false. !'Maximum angular CFL '
+    flgrd( 9, 5)  = .false. !'Maximum k advect CFL'
 
-!HK 1D version for ww3 5.14
-!HK    ! Output Type 1: fields of mean wave parameters gridded output
-!HK
-!HK    flgrd( 1) = .false. !   1. depth (m)
-!HK    flgrd( 2) = .false. !   2. mean current vel (vec, m/s)
-!HK    flgrd( 3) = .true.  !   3. mean wind vel (vec, m/s)
-!HK    flgrd( 4) = .false. !   4. air-sea temp diff (deg C)
-!HK    flgrd( 5) = .false. !   5. skin friction vel (scalar, m/s)
-!HK    flgrd( 6) = .true.  !   6. significant wave height (m)
-!HK    flgrd( 7) = .false. !   7. mean wave length (m)
-!HK    flgrd( 8) = .true.  !   8. mean wave period (Tn1, s)
-!HK    flgrd( 9) = .true.  !   9. mean wave dir (deg: met conv)
-!HK    flgrd(10) = .false. !  10. mean dir spread (deg: )
-!HK    flgrd(11) = .false. !  11. peak freq (Hz)
-!HK    flgrd(12) = .false. !  12. peak dir (deg: )
-!HK    flgrd(13) = .false. !  13. peak freq of wind-sea part
-!HK    flgrd(14) = .false. !  14. wind-sea dir (deg: met conv)
-!HK    flgrd(15) = .false. !  15. wave height of partitions
-!HK    flgrd(16) = .false. !  16. peak periods of partitions
-!HK    flgrd(17) = .false. !  17. peak wave length of partitions
-!HK    flgrd(18) = .false. !  18. mean dir of partitions
-!HK    flgrd(19) = .false. !  19. dir spread of partitions
-!HK    flgrd(20) = .false. !  20. wind-sea frac of partitions
-!HK    flgrd(21) = .false. !  21. wind-sea frac of entire spec
-!HK    flgrd(22) = .false. !  22. number of partitions
-!HK    flgrd(23) = .false. !  23. average time step (s)
-!HK    flgrd(24) = .false. !  24. cut-off freq (Hz)
-!HK    flgrd(25) = .false. !  25. ice concentration (frac)
-!HK    flgrd(26) = .false. !  26. water level (m?)
-!HK    flgrd(27) = .false. !  27. near-bottom rms exclusion amp
-!HK    flgrd(28) = .false. !  28. near-bottom rms orbital vel
-!HK    flgrd(29) = .false. !  29. radiation stresses
-!HK    flgrd(30) = .false. !  30. user defined (1)
-!HK    flgrd(31) = .false. !  31. user defined (2)
-!HK
-!HK    ! QL, 150525, new output
-!HK TODO Why are these .false. ?
-!HK    flgrd(32) = .false. !  32. Stokes drift at z=0
-!HK    flgrd(33) = .false. !  33. Turbulent Langmuir number (La_t)
-!HK    flgrd(34) = .false. !  34. Langmuir number (La_Proj)
-!HK    flgrd(35) = .false. !  35. Angle between wind and LC direction
-!HK    flgrd(36) = .false. !  36. Depth averaged Stokes drift (0-H_0.2ML)
-!HK    flgrd(37) = .false. !  37. Langmuir number (La_SL)
-!HK    flgrd(38) = .false. !  38. Langmuir number (La_SL,Proj)
-!HK    flgrd(39) = .false. !  39. Enhancement factor with La_SL,Proj
+    ! 10) is user defined
 
+    !CMB document which fields to be output to first hist file in wav.log
     if ( iaproc .eq. napout ) then
        flt = .true.
        do i=1, nogrp
-         do j=1, noge(i)
-            if ( flgrd(i,j) ) then
-               if ( flt ) then
-                  write (ndso,1945) idout(i,j)
-                  flt    = .false.
-               else
-                  write (ndso,1946) idout(i,j)
-               end if
-            end if
-         end do
+          do j=1, noge(i)
+             if ( flgrd(i,j) ) then
+                if ( flt ) then
+                   write (ndso,1945) idout(i,j)
+                   flt = .false.
+                else
+                   write (ndso,1946) idout(i,j)
+                end if
+             end if
+          end do
        end do
        if ( flt ) write (ndso,1945) 'no fields defined'
     end if
@@ -923,11 +871,11 @@ contains
     allocate ( x(1), y(1), pnames(1) )
     pnames(1) = ' '
 
-    !HK flgrd2 is flags for coupling output
+    !HK flgrd2 is flags for coupling output, not ready yet so keep .false.
     !HK 1 is model number
     !HK IsMulti does not appear to be used, setting to .true.
     call w3init ( 1, .true., 'ww3', nds, ntrace, odat, flgrd, flgrd2, flg, flg2, &
-                  npts, x, y, pnames, iprt, prtfrm, mpi_comm )
+         npts, x, y, pnames, iprt, prtfrm, mpi_comm )
     call shr_sys_flush(ndso)
 
     ! HK these values are appropriate for ww3a only
@@ -940,7 +888,7 @@ contains
     !dtmin  = real(dtime_sync) / 12 !checked by adrean
 
     ! gx17
-   !180.0000       180.0000       180.0000       15.00000 
+    !180.0000       180.0000       180.0000       15.00000 
     dtmax  = 1800.0000 ! LR 
     dtcfl  = 600.0000
     dtcfli = 1800.0000
@@ -958,7 +906,6 @@ contains
     !-------------
     ! create a  global index array for sea points
     !-------------
-
     allocate(gindex_sea(nseal))
     do jsea=1, nseal
        isea = iaproc + (jsea-1)*naproc
@@ -970,7 +917,6 @@ contains
     !-------------
     ! create a global index array for non-sea (i.e. land points)
     !-------------
-
     allocate(mask_global(nx*ny), mask_local(nx*ny))
     mask_local(:) = 0
     do jsea=1, nseal
@@ -1113,9 +1059,11 @@ contains
     real(r8), pointer :: wave_elevation_spectrum25(:)
     character(len=*),parameter :: subname = '(wav_comp_nuopc:DataInitialize)'
     ! -------------------------------------------------------------------
+
     !--------------------------------------------------------------------
     ! Create export state 
     !--------------------------------------------------------------------
+
     call NUOPC_ModelGet(gcomp, exportState=exportState, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
@@ -1280,12 +1228,37 @@ contains
     endif
 
     !------------
-    ! Determine if time to write restart
+    ! Determine time info 
+    !------------
+
+    ! use current time for next time step the NUOPC clock is not updated
+    ! until the end of the time interval
+    call ESMF_ClockGetNextTime(clock, nextTime=ETime, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call shr_cal_ymd2date(yy, mm, dd, ymd)
+    hh = tod/3600
+    mm = (tod - (hh * 3600))/60
+    ss = tod - (hh*3600) - (mm*60)
+
+    timen(1) = ymd
+    timen(2) = hh*10000 + mm*100 + ss
+
+    time0(1) = ymd
+    time0(2) = hh*10000 + mm*100 + ss
+
+    time = time0
+
+    !------------
+    ! Determine if time to write history
     !------------
     if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
        ! output every outfreq hours
        histwr = .true.
     else
+       histwr = .false.
        call ESMF_ClockGetAlarm(clock, alarmname='alarm_history', alarm=alarm, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
        if (ESMF_AlarmIsRinging(alarm, rc=rc)) then
@@ -1298,36 +1271,8 @@ contains
        endif
     end if
 
-
-    !------------
-    ! Determine time info 
-    !------------
-
-    ! use current time for next time step the NUOPC clock is not updated
-    ! until the end of the time interval
-    call ESMF_ClockGetNextTime(clock, nextTime=ETime, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call shr_cal_ymd2date(yy, mm, dd, ymd)
-    hh = tod/3600
-    mm = (tod - (hh * 3600))/60
-    ss = tod - (hh*3600) - (mm*60)
-    timen(1) = ymd
-    timen(2) = hh*10000 + mm*100 + ss
-
-    call ESMF_ClockGetNextTime(clock, nextTime=ETime, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call shr_cal_ymd2date(yy, mm, dd, ymd)
-    hh = tod/3600
-    mm = (tod - (hh * 3600))/60
-    ss = tod - (hh*3600) - (mm*60)
-    time0(1) = ymd
-    time0(2) = hh*10000 + mm*100 + ss
-
-    time = time0
+    !    write(stdout,*) 'CMB wav_comp_nuopc time', time, timen
+    !    write(stdout,*) 'ww3 hist flag ', histwr, outfreq, hh, mod(hh, outfreq)
 
     !------------
     ! Obtain import data from import state

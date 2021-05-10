@@ -77,12 +77,12 @@ def buildnml(case, caseroot, compname):
     # Construct the namelist generator
     #----------------------------------------------------
     # determine directory for user modified namelist_definitions.xml and namelist_defaults.xml
-    user_xml_dir = os.path.join(caseroot, "SourceMods", "src.ww3")
+    user_xml_dir = os.path.join(caseroot, "SourceMods", "src.ww3dev")
     expect(os.path.isdir(user_xml_dir),
            "user_xml_dir %s does not exist " %user_xml_dir)
 
     # user definition *replaces* existing definition.
-    namelist_xml_dir = os.path.join(srcroot, "components", "ww3", "cime_config")
+    namelist_xml_dir = os.path.join(srcroot, "components", "ww3dev", "cime_config")
     definition_file = [os.path.join(namelist_xml_dir, "namelist_definition_ww3.xml")]
     user_definition = os.path.join(user_xml_dir, "namelist_definition_ww3.xml")
     if os.path.isfile(user_definition):
@@ -122,7 +122,7 @@ def buildnml(case, caseroot, compname):
             inst_string_label = "\"\""
 
         # create namelist_infile using user_nl_file as input
-        user_nl_file = os.path.join(caseroot, "user_nl_ww" + inst_string)
+        user_nl_file = os.path.join(caseroot, "user_nl_wwdev" + inst_string)
         expect(os.path.isfile(user_nl_file),
                "Missing required user_nl_file %s " %(user_nl_file))
         infile = os.path.join(confdir, "namelist_infile")
@@ -148,22 +148,20 @@ def buildnml(case, caseroot, compname):
     din_loc_root = case.get_value("DIN_LOC_ROOT")
 
     #HK use C. Bitz grids
-    #file1 = os.path.join(din_loc_root, "wav", "ww3", "core2_G4_wns_30min_20000601_to_05.nc")
-    file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "wind.ww3")
+    file1 = os.path.join(din_loc_root, "wav", "ww3", "core2_G4_wns_30min_20000601_to_05.nc")
+    #file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "wind.ww3")
     #file1 = os.path.join("/users/hkershaw/data/hkershaw/nuopc/IC4M3IS0k", "wind.ww3")
     file2 = os.path.join(rundir, "wind.ww3")
     if os.path.isfile(file1):
         shutil.copy(file1, file2)
 
     #HK use C. Bitz grids
-    #file1 = os.path.join(din_loc_root, "wav", "ww3", "G4L1.mod_def.ww3.121031")
-    file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "mod_def.ww3")
+    file1 = os.path.join(din_loc_root, "wav", "ww3", "G4L1.mod_def.ww3.121031")
+    #file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "mod_def.ww3")
     #file1 = os.path.join("/users/hkershaw/data/hkershaw/nuopc/IC4M3IS0k", "mod_def.ww3")
     file2 = os.path.join(rundir, "mod_def.ww3")
     if os.path.isfile(file1):
         shutil.copy(file1, file2)
-
-
 
 ###############################################################################
 def _main_func():
