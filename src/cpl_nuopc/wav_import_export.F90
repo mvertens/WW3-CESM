@@ -506,10 +506,10 @@ contains
        iy  = MAPSF(ISEA,2)
        if (MAPSTA(iy,ix) .eq. 1) then
           ! use hstokes to pass LaSL to POP
-          sw_lamult(jsea)  = LAMULT(ISEA)
-          sw_ustokes(jsea) = USSX(ISEA)
-          sw_vstokes(jsea) = USSY(ISEA)
-          !sw_hstokes(jsea) = LASLPJ(ISEA)
+          sw_lamult(jsea)  = LAMULT(jsea)
+          sw_ustokes(jsea) = USSX(jsea)
+          sw_vstokes(jsea) = USSY(jsea)
+          !sw_hstokes(jsea) = LASLPJ(jsea) 
        else
           sw_lamult(jsea)  = 1.
           sw_ustokes(jsea) = 0.
