@@ -32,6 +32,7 @@ def _create_namelists(case, confdir, namelist_infile, nmlgen, data_list_path):
     config = {}
     run_type = case.get_value("RUN_TYPE")
     config["runtype"] = run_type
+    config["wav_grid"] = case.get_value("WAV_GRID")
     #----------------------------------------------------
     # Initialize namelist defaults
     #----------------------------------------------------
@@ -146,22 +147,21 @@ def buildnml(case, caseroot, compname):
     #----------------------------------------------------
     rundir = case.get_value("RUNDIR")
     din_loc_root = case.get_value("DIN_LOC_ROOT")
+    wav_grid = case.get_value("WAV_GRID")
 
-    #HK use C. Bitz grids
-    file1 = os.path.join(din_loc_root, "wav", "ww3", "core2_G4_wns_30min_20000601_to_05.nc")
-    #file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "wind.ww3")
-    #file1 = os.path.join("/users/hkershaw/data/hkershaw/nuopc/IC4M3IS0k", "wind.ww3")
-    file2 = os.path.join(rundir, "wind.ww3")
-    if os.path.isfile(file1):
-        shutil.copy(file1, file2)
+    # mod_def.ww3: grid and model configuration
+    if wav_grid == "ww3a":
+        #mod_def_in = os.path.join(din_loc_root, "wav", "ww3", "G4L1.mod_def.ww3.121031")
+        mod_def_in = os.path.join("/glade/work/altuntas/ww3.input/grid/ww3a", "mod_def.ww3")
+    elif wav_grid == "gx1v7":
+        mod_def_in = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "mod_def.ww3")
+    elif wav_grid == "tx0.66v1":
+        mod_def_in = os.path.join("/glade/work/altuntas/ww3.input/grid/tx0.66v1", "mod_def.ww3")
+    else:
+        raise RuntimeError("Unknown WAV grid: {}".format(wav_grid))
 
-    #HK use C. Bitz grids
-    file1 = os.path.join(din_loc_root, "wav", "ww3", "G4L1.mod_def.ww3.121031")
-    #file1 = os.path.join("/glade/scratch/hkershaw/wwatch3v6p07/IC4M3IS0k_gx17_steps180-180-180-15/", "mod_def.ww3")
-    #file1 = os.path.join("/users/hkershaw/data/hkershaw/nuopc/IC4M3IS0k", "mod_def.ww3")
-    file2 = os.path.join(rundir, "mod_def.ww3")
-    if os.path.isfile(file1):
-        shutil.copy(file1, file2)
+    if os.path.isfile(mod_def_in):
+        shutil.copy(mod_def_in, os.path.join(rundir, "mod_def.ww3"))
 
 ###############################################################################
 def _main_func():
