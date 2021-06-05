@@ -1929,7 +1929,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
 !        be NSEAML length?
             ! QL, 150525, output Stokes drift and Langmuir numbers
             !USERO(JSEA,1) = HS(JSEA) / MAX ( 0.001 , DW(JSEA) )
-            !USERO(JSEA,2) = ASF(JSEA)
+            !USERO(JSEA,2) = ASF(ISEA)
             IF (ETUSSX(JSEA) .NE. 0. .OR. ETUSSY(JSEA) .NE. 0.) THEN
 
               USSX(JSEA) = ETUSSX(JSEA)
@@ -1942,7 +1942,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
               IF( SQRT(USSX(JSEA)**2 + USSY(JSEA)**2) .GT. 0) THEN
                IF( SQRT(USSXH(JSEA)**2+USSYH(JSEA)**2) .GT. 0) THEN
 
-                  LANGMT(JSEA) = SQRT ( UST(JSEA) * ASF(JSEA)        &
+                  LANGMT(JSEA) = SQRT ( UST(ISEA) * ASF(ISEA)        &
                             * SQRT ( DAIR / DWAT )                   &
                             / SQRT ( USSX(JSEA)**2 + USSY(JSEA)**2 ) )
                   ! Calculating Langmuir Number for misaligned wind and waves
@@ -1951,7 +1951,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                   ! SWW: angle between Stokes drift and wind
 
                   ! no Stokes depth
-                  SWW = ATAN2(USSY(JSEA),USSX(JSEA)) - UD(JSEA)
+                  SWW = ATAN2(USSY(JSEA),USSX(JSEA)) - UD(ISEA)
                   ! ALPHALS: angle between wind and LC direction, Surface
                   ! Stokes drift
                   ! LR check for divide by zero
@@ -1977,7 +1977,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                     * SQRT(ABS(COS(ALPHALS(JSEA))) &
                     / ABS(COS(SWW-ALPHALS(JSEA))))
                   ! Stokes depth
-                  SWW = ATAN2(USSYH(JSEA),USSXH(JSEA)) - UD(JSEA)
+                  SWW = ATAN2(USSYH(JSEA),USSXH(JSEA)) - UD(ISEA)
                   ! ALPHAL: angle between wind and LC direction
                   
                   ! LR check for divide by zero (same as above)
@@ -1990,7 +1990,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       ALPHAL(JSEA) = ATAN(SIN(SWW) / (LANGMT(JSEA)**2  &
                     /0.4*LOG(MAX(ABS(HML(IX,IY)/4./HS(JSEA)),1.0))+COS(SWW)))
                   end if
-                  LASL(JSEA) = SQRT(UST(JSEA)*ASF(JSEA)         &
+                  LASL(JSEA) = SQRT(UST(ISEA)*ASF(ISEA)         &
                        * SQRT(DAIR/DWAT)                       &
                        / SQRT(USSXH(JSEA)**2+USSYH(JSEA)**2))
                   LASLPJ(JSEA) = LASL(JSEA) * SQRT(ABS(COS(ALPHAL(JSEA))) &
