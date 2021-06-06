@@ -448,7 +448,6 @@ contains
     ! Local variables
     type(ESMF_State)  :: exportState
     integer           :: n, jsea, isea, ix, iy, lsize, k
-    logical, save     :: firsttime = .true.
 
     real(r8), pointer :: sw_lamult(:)
     real(r8), pointer :: sw_ustokes(:)
@@ -728,7 +727,8 @@ contains
    call state_getfldptr(exportState, 'Sw_pstokes', fldptr2d=sw_pstokes, rc=rc)
    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-   if ((.not. firsttime) .and. USSPF(1) > 0) then ! Partitioned Stokes drift computation is turned on in mod_def file.
+   sw_pstokes(:,:) = fillvalue
+   if (USSPF(1) > 0) then ! Partitioned Stokes drift computation is turned on in mod_def file.
       !call CalcPStokes(rc)
       call CALC_U3STOKES(va, 2)
       do jsea = 1, nseal
@@ -740,9 +740,6 @@ contains
         sw_pstokes(6,jsea) = ussp(jsea,nk+1)
       end do
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-   else
-     firsttime = .false.
-     sw_pstokes(:,:) = fillvalue
    endif
 
   end subroutine export_fields
