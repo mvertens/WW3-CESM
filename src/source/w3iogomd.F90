@@ -2394,7 +2394,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                           CFLXYMAX, CFLTHMAX, CFLKMAX, P2SMS, US3D,    &
                           TH1M, STH1M, TH2M, STH2M, HSIG, PHICE, TAUICE,&
                           STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD, HCMAXD,&
-                          USSP
+                          USSP, LANGMT
 !/
       USE W3ODATMD, ONLY: NOGRP, NGRPP, IDOUT, UNDEF, NDST, NDSE,     &
                           FLOGRD, IPASS => IPASS1, WRITE => WRITE1,   &
@@ -2708,6 +2708,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                 IF ( FLOGRD( 6, 10) ) TAUICE(ISEA,:) = UNDEF
                 IF ( FLOGRD( 6, 11) ) PHICE(ISEA) = UNDEF
                 IF ( FLOGRD( 6, 12) ) USSP(ISEA,:) = UNDEF
+                IF ( FLOGRD( 6, 13) ) LANGMT(ISEA) = UNDEF
 !
                 IF ( FLOGRD( 7, 1) ) THEN
                                      ABA   (ISEA) = UNDEF
@@ -3154,6 +3155,12 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                  ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 12 ) THEN
                     !WRITE ( NDSOG ) USSP(1:NSEA,   1:USSPF(2))
                     !WRITE ( NDSOG ) USSP(1:NSEA,NK+1:NK+USSPF(2))
+                 ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 13 ) THEN
+                    AUX1(1:NSEA) = LANGMT(1:NSEA)
+                    WAUX1 = .TRUE.
+                    FLDSTR1 = 'LANGMT'
+                    UNITSTR1 = ''
+                    LNSTR1 = 'Turbulent Langmuir number (La_t)'
 !
 !     Section 7)
 !
@@ -3598,6 +3605,9 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                                    USSP(1:NSEA,1:USSPF(2))
                      READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)  &
                                    USSP(1:NSEA,NK+1:NK+USSPF(2))
+                  ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 13 ) THEN
+                    READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
+                                                       LANGMT(1:NSEA)
  
 !
 !     Section 7)

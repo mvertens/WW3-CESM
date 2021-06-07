@@ -781,6 +781,8 @@ contains
     flgrd( 6,10)  = .false. !'Wave-ice mom. flux  '
     flgrd( 6,11)  = .false. !'Wave-ice energy flux'
     flgrd( 6,12)  = .false. !'Split Surface Stokes'
+    !aa
+    flgrd( 6,13)  = .true. ! Turbulent Langmuir number (La_t)
 
     ! 7) Wave-bottom layer
     flgrd( 7, 1)  = .false. !'Bottom rms ampl.    '

@@ -415,7 +415,7 @@
                                  XTAUOY(:), XBHD(:), XPHIOC(:),       &
                                  XTUSX(:), XTUSY(:), XUSSX(:),        &
                                  XUSSY(:), XPRMS(:), XTPMS(:),        &
-                                 XPHICE(:), XTAUICE(:,:)
+                                 XPHICE(:), XTAUICE(:,:), XLANGMT(:)
         REAL, POINTER         :: XP2SMS(:,:), XUS3D(:,:), XUSSP(:,:)
 
 !
@@ -1113,6 +1113,7 @@
       WADATS(IMOD)%TPMS   = UNDEF
       WADATS(IMOD)%PHICE  = UNDEF
       WADATS(IMOD)%TAUICE = UNDEF
+      WADATS(IMOD)%LANGMT = UNDEF
       IF (  P2MSF(1).GT.0 ) WADATS(IMOD)%P2SMS  = UNDEF
       IF (  US3DF(1).GT.0 ) WADATS(IMOD)%US3D   = UNDEF
       IF (  USSPF(1).GT.0 ) WADATS(IMOD)%USSP   = UNDEF
@@ -1924,6 +1925,14 @@
         END IF
  
 !
+      IF ( OUTFLAGS( 6, 13) ) THEN
+          ALLOCATE ( WADATS(IMOD)%XLANGMT(NXXX), STAT=ISTAT )
+          CHECK_ALLOC_STATUS ( ISTAT )
+        ELSE
+          ALLOCATE ( WADATS(IMOD)%XLANGMT(1), STAT=ISTAT )
+          CHECK_ALLOC_STATUS ( ISTAT )
+        END IF
+!
       WADATS(IMOD)%XSXX    = UNDEF
       WADATS(IMOD)%XSYY    = UNDEF
       WADATS(IMOD)%XSXY    = UNDEF
@@ -1942,6 +1951,7 @@
       WADATS(IMOD)%XPHICE  = UNDEF
       WADATS(IMOD)%XTAUICE = UNDEF
       WADATS(IMOD)%XUSSP   = UNDEF
+      WADATS(IMOD)%XLANGMT = UNDEF
 !
       IF ( OUTFLAGS( 7, 1) ) THEN
           ALLOCATE ( WADATS(IMOD)%XABA(NXXX), STAT=ISTAT )
@@ -2843,6 +2853,7 @@
           BEDFORMS=> WADATS(IMOD)%XBEDFORMS
           PHIBBL => WADATS(IMOD)%XPHIBBL
           TAUBBL => WADATS(IMOD)%XTAUBBL
+          LANGMT   => WADATS(IMOD)%XLANGMT
 !
           MSSX   => WADATS(IMOD)%XMSSX
           MSSY   => WADATS(IMOD)%XMSSY
