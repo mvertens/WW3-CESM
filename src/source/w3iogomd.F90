@@ -3139,6 +3139,16 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 6 ) THEN
                     !WRITE ( NDSOG ) USSX(1:NSEA)
                     !WRITE ( NDSOG ) USSY(1:NSEA)
+                    AUX1(1:NSEA) = USSX(1:NSEA)
+                    AUX2(1:NSEA) = USSY(1:NSEA)
+                    WAUX1 = .TRUE.
+                    WAUX2 = .TRUE.
+                    FLDSTR1 = 'USSX'
+                    FLDSTR2 = 'USSY'
+                    UNITSTR1 = 'm/s'
+                    UNITSTR2 = 'm/s'
+                    LNSTR1 = 'Stokes drift at z=0'
+                    LNSTR2 = 'Stokes drift at z=0'
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 7 ) THEN
                     !WRITE ( NDSOG ) PRMS(1:NSEA)
                     !WRITE ( NDSOG ) TPMS(1:NSEA)

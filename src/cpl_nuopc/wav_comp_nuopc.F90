@@ -774,7 +774,7 @@ contains
     flgrd( 6, 3)  = .false. !'wave ind p Bern Head'
     flgrd( 6, 4)  = .false. !'Wave-ocean TKE  flux'
     flgrd( 6, 5)  = .false. !'Stokes transport    '
-    flgrd( 6, 6)  = .false. !'Stokes drift at z=0 '
+    flgrd( 6, 6)  = .true. !'Stokes drift at z=0 '
     flgrd( 6, 7)  = .false. !'2nd order pressure  '
     flgrd( 6, 8)  = .false. !'Stokes drft spectrum'
     flgrd( 6, 9)  = .false. !'2nd ord press spectr'
