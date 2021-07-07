@@ -95,6 +95,7 @@ contains
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_ustokes')
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_vstokes')
    !call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
+    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes', ungridded_lbound=1, ungridded_ubound=6)
 
     if (wav_coupling_to_cice) then
        call fldlist_add(fldsFrWav_num, fldsFrWav, 'wav_tauice1')
@@ -433,10 +434,12 @@ contains
     !---------------------------------------------------------------------------
 
     use shr_const_mod , only : fillvalue=>SHR_CONST_SPVAL
-    use w3adatmd      , only : LAMULT, USSX, USSY, EF, TAUICE
+    use w3adatmd      , only : LAMULT, USSX, USSY, EF, TAUICE, USSP
+    use w3wdatmd      , only : va
     !HK trying to use extended arrays use w3adatmd      , only : XUSSX, XUSSY, XEF
     use w3odatmd      , only : naproc, iaproc
-    use w3gdatmd      , only : nseal, MAPSTA, MAPFS, MAPSF
+    use w3gdatmd      , only : nseal, MAPSTA, MAPFS, MAPSF, USSPF, NK
+    use w3iogomd      , only : CALC_U3STOKES
 
     ! input/output/variables
     type(ESMF_GridComp)  :: gcomp
@@ -478,6 +481,9 @@ contains
     real(r8), pointer :: wave_elevation_spectrum23(:)   
     real(r8), pointer :: wave_elevation_spectrum24(:)   
     real(r8), pointer :: wave_elevation_spectrum25(:)   
+
+    real(r8), pointer :: sw_pstokes(:,:)   
+
     character(len=*), parameter :: subname='(wav_import_export:export_fields)'
     !---------------------------------------------------------------------------
 
@@ -717,6 +723,24 @@ contains
           wave_elevation_spectrum25(jsea) = fillvalue 
        end do
     end if
+
+   call state_getfldptr(exportState, 'Sw_pstokes', fldptr2d=sw_pstokes, rc=rc)
+   if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+   sw_pstokes(:,:) = fillvalue
+   if (USSPF(1) > 0) then ! Partitioned Stokes drift computation is turned on in mod_def file.
+      !call CalcPStokes(rc)
+      call CALC_U3STOKES(va, 2)
+      do jsea = 1, nseal
+        sw_pstokes(1,jsea) = ussp(jsea,1)
+        sw_pstokes(2,jsea) = ussp(jsea,nk+1)
+        sw_pstokes(3,jsea) = ussp(jsea,2)
+        sw_pstokes(4,jsea) = ussp(jsea,nk+2)
+        sw_pstokes(5,jsea) = ussp(jsea,3)
+        sw_pstokes(6,jsea) = ussp(jsea,nk+1)
+      end do
+      if (ChkErr(rc,__LINE__,u_FILE_u)) return
+   endif
 
   end subroutine export_fields
 

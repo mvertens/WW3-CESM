@@ -417,7 +417,7 @@
             OPEN (NDSR, FILE=FNAME, FORM='UNFORMATTED',          &
                  !ACCESS='DIRECT',RECL=LRECL,ERR=800,IOSTAT=IERR, &
                  ACCESS='STREAM',ERR=800,IOSTAT=IERR,                  &
-                 STATUS='OLD')
+                 STATUS='OLD',ACTION='READ')
          ELSE
             error_msg = "required initial file " // trim(FNAME) // "does not exist"
             call shr_sys_abort(error_msg)
@@ -496,11 +496,13 @@
               END IF
             ELSE
               READ (NDSR,POS=RPOS,ERR=802,IOSTAT=IERR) TTIME
-              IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
-                  IF ( IAPROC .EQ. NAPERR )                           &
-                      WRITE (NDSE,906) TTIME, TIME
-                  CALL EXTCDE ( 20 )
-                END IF
+              if (runtype == 'branch' .or. runtype == 'continue') then
+                IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
+                    IF ( IAPROC .EQ. NAPERR )                           &
+                        WRITE (NDSE,906) TTIME, TIME
+                    CALL EXTCDE ( 20 )
+                  END IF
+              end if
             END IF
 !
         END IF
