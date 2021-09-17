@@ -95,7 +95,8 @@ contains
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_ustokes')
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_vstokes')
    !call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
-    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes', ungridded_lbound=1, ungridded_ubound=6)
+    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes_x', ungridded_lbound=1, ungridded_ubound=3)
+    call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes_y', ungridded_lbound=1, ungridded_ubound=3)
 
     if (wav_coupling_to_cice) then
        call fldlist_add(fldsFrWav_num, fldsFrWav, 'wav_tauice1')
@@ -482,7 +483,8 @@ contains
     real(r8), pointer :: wave_elevation_spectrum24(:)   
     real(r8), pointer :: wave_elevation_spectrum25(:)   
 
-    real(r8), pointer :: sw_pstokes(:,:)   
+    real(r8), pointer :: sw_pstokes_x(:,:)
+    real(r8), pointer :: sw_pstokes_y(:,:)
 
     character(len=*), parameter :: subname='(wav_import_export:export_fields)'
     !---------------------------------------------------------------------------
@@ -724,20 +726,24 @@ contains
        end do
     end if
 
-   call state_getfldptr(exportState, 'Sw_pstokes', fldptr2d=sw_pstokes, rc=rc)
+   call state_getfldptr(exportState, 'Sw_pstokes_x', fldptr2d=sw_pstokes_x, rc=rc)
    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-   sw_pstokes(:,:) = fillvalue
+   call state_getfldptr(exportState, 'Sw_pstokes_y', fldptr2d=sw_pstokes_y, rc=rc)
+   if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+   sw_pstokes_x(:,:) = fillvalue
+   sw_pstokes_y(:,:) = fillvalue
    if (USSPF(1) > 0) then ! Partitioned Stokes drift computation is turned on in mod_def file.
       !call CalcPStokes(rc)
       call CALC_U3STOKES(va, 2)
       do jsea = 1, nseal
-        sw_pstokes(1,jsea) = ussp(jsea,1)
-        sw_pstokes(2,jsea) = ussp(jsea,nk+1)
-        sw_pstokes(3,jsea) = ussp(jsea,2)
-        sw_pstokes(4,jsea) = ussp(jsea,nk+2)
-        sw_pstokes(5,jsea) = ussp(jsea,3)
-        sw_pstokes(6,jsea) = ussp(jsea,nk+1)
+        sw_pstokes_x(1,jsea) = ussp(jsea,1)
+        sw_pstokes_x(2,jsea) = ussp(jsea,2)
+        sw_pstokes_x(3,jsea) = ussp(jsea,3)
+        sw_pstokes_y(1,jsea) = ussp(jsea,nk+1)
+        sw_pstokes_y(2,jsea) = ussp(jsea,nk+2)
+        sw_pstokes_y(3,jsea) = ussp(jsea,nk+3)
       end do
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
    endif
