@@ -1997,7 +1997,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                                / ABS(COS(SWW-ALPHAL(JSEA))))
                   ! QL, 160530, LAMULT
                   LAMULT(JSEA) = MIN(5.0, ABS(COS(ALPHAL(JSEA))) * &
-                     SQRT(1.0+(1.5*LASLPJ(JSEA))**(-2)+(5.4*LASLPJ(JSEA))**(-4)))
+                     SQRT(1.0+(1.5*LASLPJ(JSEA))**(-2)+(5.4*real(LASLPJ(JSEA),kind=8))**(-4)))
                   ! user defined output
                   USERO(JSEA,1) = HML(IX,IY)
                   !USERO(JSEA,2) = COS(ALPHAL(JSEA)
