@@ -97,6 +97,10 @@ contains
    !call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_hstokes')
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes_x', ungridded_lbound=1, ungridded_ubound=3)
     call fldlist_add(fldsFrWav_num, fldsFrWav, 'Sw_pstokes_y', ungridded_lbound=1, ungridded_ubound=3)
+    ! AA TODO: In the above fldlist_add calls, we are passing hardcoded ungridded_ubound values (3) because, USSPF(2)
+    ! is not initialized yet. It is set during w3init which gets called at a later phase (realize). A permanent solution
+    ! will be implemented soon based on receiving USSP and USSPF from the coupler instead of the mod_def file. This will
+    ! also ensure compatibility with the ocean component since ocean will also receive these from the coupler.
 
     if (wav_coupling_to_cice) then
        call fldlist_add(fldsFrWav_num, fldsFrWav, 'wav_tauice1')
@@ -448,7 +452,7 @@ contains
 
     ! Local variables
     type(ESMF_State)  :: exportState
-    integer           :: n, jsea, isea, ix, iy, lsize, k
+    integer           :: n, jsea, isea, ix, iy, lsize, ib
 
     real(r8), pointer :: sw_lamult(:)
     real(r8), pointer :: sw_ustokes(:)
@@ -737,13 +741,11 @@ contains
    if (USSPF(1) > 0) then ! Partitioned Stokes drift computation is turned on in mod_def file.
       !call CalcPStokes(rc)
       call CALC_U3STOKES(va, 2)
-      do jsea = 1, nseal
-        sw_pstokes_x(1,jsea) = ussp(jsea,1)
-        sw_pstokes_x(2,jsea) = ussp(jsea,2)
-        sw_pstokes_x(3,jsea) = ussp(jsea,3)
-        sw_pstokes_y(1,jsea) = ussp(jsea,nk+1)
-        sw_pstokes_y(2,jsea) = ussp(jsea,nk+2)
-        sw_pstokes_y(3,jsea) = ussp(jsea,nk+3)
+      do ib = 1, USSPF(2)
+         do jsea = 1, nseal
+            sw_pstokes_x(ib,jsea) = ussp(jsea,ib)
+            sw_pstokes_y(ib,jsea) = ussp(jsea,nk+ib)
+         enddo
       end do
       if (ChkErr(rc,__LINE__,u_FILE_u)) return
    endif
