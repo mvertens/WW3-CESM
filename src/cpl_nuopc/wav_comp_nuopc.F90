@@ -1260,11 +1260,15 @@ contains
     !------------
     ! Determine if time to write history
     !------------
-    if (outfreq .gt. 0 .and. mod(hh, outfreq) .eq. 0 ) then
+    histwr = .false.
+    if (outfreq .gt. 0) then
+      if( mod(hh, outfreq) .eq. 0 ) then
        ! output every outfreq hours
        histwr = .true.
-    else
-       histwr = .false.
+      endif
+    endif
+
+    if (.not. histwr) then
        call ESMF_ClockGetAlarm(clock, alarmname='alarm_history', alarm=alarm, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
        if (ESMF_AlarmIsRinging(alarm, rc=rc)) then
