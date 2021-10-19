@@ -150,7 +150,7 @@ module wav_comp_nuopc
   ! 10. Source code :
   !
   !/ ------------------------------------------------------------------- /
-  
+
   use w3gdatmd              , only : nseal, nsea, dtmax, dtcfl, dtmin, nx, ny, mapsf, w3nmod, w3setg
   use w3wdatmd              , only : time, w3ndat, w3dimw, w3setw
   use w3wdatmd              , only : time, w3ndat, w3dimw, w3setw
@@ -185,9 +185,8 @@ module wav_comp_nuopc
   use wav_shr_methods       , only : set_component_logging, get_component_instance, log_clock_advance
   use wav_shr_methods       , only : ymd2date
 #ifdef CESMCOUPLED
-  use shr_file_mod          , only : shr_file_getunit
   use shr_nl_mod            , only : shr_nl_find_group_name
-  use shr_file_mod          , only : shr_file_getLogUnit, shr_file_setLogUnit, shr_file_getunit
+  use shr_file_mod          , only : shr_file_getunit
 #endif
 
   implicit none
@@ -207,25 +206,25 @@ module wav_comp_nuopc
   integer                        :: odat(40) !HK odat is 35
   !TODO: added from w3cesmmd
   ! runtype is used by W3SRCE (values are startup, branch, continue)
-      character(len=16),public :: runtype
+  character(len=16),public :: runtype
 
-      ! if a run is a startup or branch run, then initfile is used
-      ! to construct the initial file and used in W3IORSMD
-      character(len=256), public :: initfile
+  ! if a run is a startup or branch run, then initfile is used
+  ! to construct the initial file and used in W3IORSMD
+  character(len=256), public :: initfile
 
-      ! if a run is a continue run, then casename is used to construct
-      ! the restart filename in W3IORSMD
-      character(len=256), public :: casename
+  ! if a run is a continue run, then casename is used to construct
+  ! the restart filename in W3IORSMD
+  character(len=256), public :: casename
 
-      logical, public :: rstwr   ! true => write restart at end of day
-      logical, public :: histwr  ! true => write history file (snapshot)
+  logical, public :: rstwr   ! true => write restart at end of day
+  logical, public :: histwr  ! true => write history file (snapshot)
 
-      integer, public :: outfreq ! output frequency in hours
-      integer, public :: stdout  ! output log file
+  integer, public :: outfreq ! output frequency in hours
+  integer, public :: stdout  ! output log file
 
-      integer, public                  :: inst_index            ! number of current instance (ie. 1)
-      character(len=16), public :: inst_name   ! fullname of current instance (ie. "wav_0001")
-      character(len=16), public :: inst_suffix ! char string associated with instance
+  integer, public                  :: inst_index            ! number of current instance (ie. 1)
+  character(len=16), public :: inst_name   ! fullname of current instance (ie. "wav_0001")
+  character(len=16), public :: inst_suffix ! char string associated with instance
 
   !--------------------------------------------------------------------------
   ! Private module data
@@ -601,7 +600,7 @@ contains
 
     !  inflags1 array consolidating the above four flags, as well asfour additional data flags.
     !  inflags2 like inflags1 but does *not* get changed when model reads last record of ice.ww3
-    
+
     ! flags for passing variables from coupler to ww3, lev, curr, wind, ice and mixing layer depth on
     inflags1(:) = .false.
     inflags1(1:5) = .true.
@@ -609,7 +608,7 @@ contains
     if (wav_coupling_to_cice) then
        inflags1(-7) = .true. ! LR ice thickness
        inflags1(-3) = .true. ! LR ice floe size
-       
+
        ! LR - I don't understand the difference between inflags1 and inflags2
        ! I am setting them both here to get thickness and floe size import to waves
        ! and to turn on attenuation
@@ -863,42 +862,92 @@ contains
     !--------------------------------------------------------------------
     ! Wave model initializations
     !--------------------------------------------------------------------
-! TODO:
-!    ! Notes on ww3 initialization:
-!    ! ww3 read initialization occurs in w3iors (which is called by initmd)
-!    ! For a startup (including hybrid) or branch run the initial datafile is
-!    ! set in namelist input 'initfile'
-!    ! For a continue run - the initfile vluae is created from the time(1:2)
-!    ! array set below
-!
-!    if ( iaproc .eq. napout ) write (ndso,950)
-!    if ( iaproc .eq. napout ) write (ndso,951) 'wave model ...'
-!
-!    ! Read namelist (set initfile in w3cesmmd)
-!    if ( iaproc .eq. napout ) then
-!       write(ndso,*) 'Read in ww3_inparm namelist from wav_in'//trim(inst_suffix)
-!       open(newunit=unitn, file='wav_in'//trim(inst_suffix), status='old')
-!       !call shr_nl_find_group_name(unitn, 'ww3_inparm', status=ierr)
-!       if (ierr == 0) then
-!          read (unitn, ww3_inparm, iostat=ierr)
-!          if (ierr /= 0) then
-!             call ESMF_LogWrite(trim(subname)//' problem reading ww3_inparm namelist',&
-!                  ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
-!             rc = ESMF_FAILURE
-!             return
-!          end if
-!       end if
-!       close( unitn )
-!    end if
-!    call ESMF_VMBroadcast(VM, initfile, count=len(initfile), rootPet=0, rc=rc)
-!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    call ESMF_VMBroadcast(VM, outfreq, count=len(outfreq), rootPet=0, rc=rc)
-!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!
-!    ! Set casename (in w3cesmmd)
-!    call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
-!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    read(cvalue,*) casename
+
+#ifdef CESMCOUPLED
+    ! Notes on ww3 initialization:
+    ! ww3 read initialization occurs in w3iors (which is called by initmd)
+    ! For a startup (including hybrid) or branch run the initial datafile is
+    ! set in namelist input 'initfile'
+    ! For a continue run - the initfile vluae is created from the time(1:2)
+    ! array set below
+
+    if ( iaproc .eq. napout ) write (ndso,950)
+    if ( iaproc .eq. napout ) write (ndso,951) 'wave model ...'
+
+    ! Read namelist (set initfile in w3cesmmd)
+    if ( iaproc .eq. napout ) then
+       write(ndso,*) 'Read in ww3_inparm namelist from wav_in'//trim(inst_suffix)
+       open(newunit=unitn, file='wav_in'//trim(inst_suffix), status='old')
+       call shr_nl_find_group_name(unitn, 'ww3_inparm', status=ierr)
+       if (ierr == 0) then
+          read (unitn, ww3_inparm, iostat=ierr)
+          if (ierr /= 0) then
+             call ESMF_LogWrite(trim(subname)//' problem reading ww3_inparm namelist',&
+                  ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+             rc = ESMF_FAILURE
+             return
+          end if
+       end if
+       close( unitn )
+    end if
+    ! ESMF does not have a broadcast for chars
+    call mpi_bcast(initfile, len_trim(initfile), MPI_CHARACTER, 0, mpi_comm, ierr)
+    if (ierr /= MPI_SUCCESS) then
+       call ESMF_LogWrite(trim(subname)//' error in mpi broadcast for initfile ', &
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
+    end if
+    call mpi_bcast(outfreq, 1, MPI_INTEGER, 0, mpi_comm, ierr)
+    if (ierr /= MPI_SUCCESS) then
+       call ESMF_LogWrite(trim(subname)//' error in mpi broadcast for outfreq ', &
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
+    end if
+
+    ! Set casename (in w3cesmmd)
+    call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    read(cvalue,*) casename
+#else
+    ! TODO:
+    ! Notes on ww3 initialization:
+    ! ww3 read initialization occurs in w3iors (which is called by initmd)
+    ! For a startup (including hybrid) or branch run the initial datafile is
+    ! set in namelist input 'initfile'
+    ! For a continue run - the initfile vluae is created from the time(1:2)
+    ! array set below
+    !
+    !    if ( iaproc .eq. napout ) write (ndso,950)
+    !    if ( iaproc .eq. napout ) write (ndso,951) 'wave model ...'
+    !
+    !    ! Read namelist (set initfile in w3cesmmd)
+    !    if ( iaproc .eq. napout ) then
+    !       write(ndso,*) 'Read in ww3_inparm namelist from wav_in'//trim(inst_suffix)
+    !       open(newunit=unitn, file='wav_in'//trim(inst_suffix), status='old')
+    !       !call shr_nl_find_group_name(unitn, 'ww3_inparm', status=ierr)
+    !       if (ierr == 0) then
+    !          read (unitn, ww3_inparm, iostat=ierr)
+    !          if (ierr /= 0) then
+    !             call ESMF_LogWrite(trim(subname)//' problem reading ww3_inparm namelist',&
+    !                  ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+    !             rc = ESMF_FAILURE
+    !             return
+    !          end if
+    !       end if
+    !       close( unitn )
+    !    end if
+    !    call ESMF_VMBroadcast(VM, initfile, count=len(initfile), rootPet=0, rc=rc)
+    !    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !    call ESMF_VMBroadcast(VM, outfreq, count=len(outfreq), rootPet=0, rc=rc)
+    !    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !
+    !    ! Set casename (in w3cesmmd)
+    !    call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
+    !    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !    read(cvalue,*) casename
+#endif
 
     ! Read in input data and initialize the model
     ! w3init calls w3iors which:
@@ -1218,7 +1267,7 @@ contains
   !=====================================================================
 
   subroutine ModelAdvance(gcomp, rc)
-  
+
     !------------------------
     ! Run WW3
     !------------------------
@@ -1331,7 +1380,11 @@ contains
     !------------
     ! Run the wave model for the given interval
     !------------
+#ifdef CESMCOUPLED
+    call w3wave ( 1, timen )
+#else
     call w3wave ( 1, odat, timen )
+#endif
 
     !------------
     ! Create export state
