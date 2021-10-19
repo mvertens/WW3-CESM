@@ -185,6 +185,8 @@ module wav_comp_nuopc
   use wav_shr_methods       , only : set_component_logging, get_component_instance, log_clock_advance
   use wav_shr_methods       , only : ymd2date
 #ifdef CESMCOUPLED
+  use w3cesmmd              , only : casename, initfile, rstwr, runtype, histwr, outfreq
+  use w3cesmmd              , only : inst_index, inst_name, inst_suffix
   use shr_nl_mod            , only : shr_nl_find_group_name
   use shr_file_mod          , only : shr_file_getunit
 #endif
@@ -203,8 +205,10 @@ module wav_comp_nuopc
   include "mpif.h"
 
   !TODO:35->40
-  integer                        :: odat(40) !HK odat is 35
-  !TODO: added from w3cesmmd
+  integer :: odat(40) !HK odat is 35
+
+#ifndef CESMCOUPLED  
+  ! TODO: added from w3cesmmd
   ! runtype is used by W3SRCE (values are startup, branch, continue)
   character(len=16),public :: runtype
 
@@ -220,11 +224,13 @@ module wav_comp_nuopc
   logical, public :: histwr  ! true => write history file (snapshot)
 
   integer, public :: outfreq ! output frequency in hours
-  integer, public :: stdout  ! output log file
 
-  integer, public                  :: inst_index            ! number of current instance (ie. 1)
+  integer          , public :: inst_index  ! number of current instance (ie. 1)
   character(len=16), public :: inst_name   ! fullname of current instance (ie. "wav_0001")
   character(len=16), public :: inst_suffix ! char string associated with instance
+#endif
+
+  integer, public :: stdout  ! output log file
 
   !--------------------------------------------------------------------------
   ! Private module data
@@ -435,7 +441,7 @@ contains
     integer                        :: timen(2), nh(4), iprt(6)
     integer                        :: J0  ! CMB
     !TODO:35->40
-    !integer                        :: odat(40) !HK odat is 35
+    !integer                       :: odat(40) !HK odat is 35
     integer                        :: i,j,npts
     integer                        :: ierr
     real, allocatable              :: x(:), y(:)
@@ -890,6 +896,7 @@ contains
        end if
        close( unitn )
     end if
+
     ! ESMF does not have a broadcast for chars
     call mpi_bcast(initfile, len_trim(initfile), MPI_CHARACTER, 0, mpi_comm, ierr)
     if (ierr /= MPI_SUCCESS) then
@@ -910,6 +917,7 @@ contains
     call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     read(cvalue,*) casename
+
 #else
     ! TODO:
     ! Notes on ww3 initialization:
