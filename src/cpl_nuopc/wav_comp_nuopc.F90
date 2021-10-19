@@ -151,23 +151,19 @@ module wav_comp_nuopc
   !
   !/ ------------------------------------------------------------------- /
   
-  use w3gdatmd
-!  use w3gdatmd              , only: NX, NY
-  use w3wdatmd              , only: time, w3ndat, w3dimw, w3setw
-  use w3adatmd
-  !HK flags is now inflags1
-  use w3idatmd              , only: inflags1, inflags2, w3seti, w3ninp
-  use w3idatmd              , only: TC0, CX0, CY0, TCN, CXN, CYN !HK, NX, NY
-  use w3idatmd              , only: TW0, WX0, WY0, DT0, TWN, WXN, WYN, DTN
-  use w3idatmd              , only: TIN, ICEI, TLN, WLEV, HML
-  use w3odatmd              , only: w3nout, w3seto, naproc, iaproc, napout, naperr, nds !cmb
-  use w3odatmd              , only: idout, fnmpre, iostyp, nogrp, ngrpp, noge !HK
-  use w3initmd
-  use w3wavemd
-  use w3iopomd
-  use w3timemd
-  use w3cesmmd              , only : casename, initfile, rstwr, runtype, histwr, outfreq
-  use w3cesmmd              , only : inst_index, inst_name, inst_suffix
+  use w3gdatmd              , only : nseal, nsea, dtmax, dtcfl, dtmin, nx, ny, mapsf, w3nmod, w3setg
+  use w3wdatmd              , only : time, w3ndat, w3dimw, w3setw
+  use w3wdatmd              , only : time, w3ndat, w3dimw, w3setw
+  use w3adatmd              , only : w3naux, w3seta
+  use w3idatmd              , only : inflags1, inflags2, w3seti, w3ninp
+  use w3idatmd              , only : TC0, CX0, CY0, TCN, CXN, CYN !HK, NX, NY
+  use w3idatmd              , only : TW0, WX0, WY0, DT0, TWN, WXN, WYN, DTN
+  use w3idatmd              , only : TIN, ICEI, TLN, WLEV ! HML
+  use w3odatmd              , only : w3nout, w3seto, naproc, iaproc, napout, naperr, nds !cmb
+  use w3odatmd              , only : idout, fnmpre, iostyp, nogrp, ngrpp, noge !HK
+  use w3initmd              , only : w3init
+  use w3wavemd              , only : w3wave
+  use w3timemd              , only : stme21
   use ESMF
   use NUOPC                 , only : NUOPC_CompDerive, NUOPC_CompSetEntryPoint, NUOPC_CompSpecialize
   use NUOPC                 , only : NUOPC_CompFilterPhaseMap, NUOPC_IsUpdated, NUOPC_IsAtTime
@@ -179,17 +175,20 @@ module wav_comp_nuopc
   use NUOPC_Model           , only : model_label_SetRunClock    => label_SetRunClock
   use NUOPC_Model           , only : model_label_Finalize       => label_Finalize
   use NUOPC_Model           , only : NUOPC_ModelGet, SetVM
-  use shr_sys_mod           , only : shr_sys_flush, shr_sys_abort
-  use shr_nl_mod            , only : shr_nl_find_group_name
-  use shr_mpi_mod           , only : shr_mpi_bcast
-  use shr_kind_mod          , only : r8=>shr_kind_r8, i8=>shr_kind_i8, cl=>shr_kind_cl, cs=>shr_kind_cs
-  use shr_file_mod          , only : shr_file_getLogUnit, shr_file_setLogUnit, shr_file_getunit
-  use shr_cal_mod           , only : shr_cal_ymd2date, shr_cal_advDateInt
+  use wav_wrapper_mod       , only : t_startf, t_stopf, t_barrierf
+  use wav_wrapper_mod       , only : shr_file_getlogunit, shr_file_setlogunit
+  use wav_kind_mod          , only : r8=>shr_kind_r8, i8=>shr_kind_i8, cl=>shr_kind_cl, cs=>shr_kind_cs
   use wav_import_export     , only : advertise_fields, realize_fields, import_fields, export_fields
   use wav_import_export     , only : state_getfldptr
   use wav_import_export     , only : wav_coupling_to_cice, wav_coupling_to_mom
   use wav_shr_methods       , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit
   use wav_shr_methods       , only : set_component_logging, get_component_instance, log_clock_advance
+  use wav_shr_methods       , only : ymd2date
+#ifdef CESMCOUPLED
+  use shr_file_mod          , only : shr_file_getunit
+  use shr_nl_mod            , only : shr_nl_find_group_name
+  use shr_file_mod          , only : shr_file_getLogUnit, shr_file_setLogUnit, shr_file_getunit
+#endif
 
   implicit none
   private ! except
@@ -202,8 +201,31 @@ module wav_comp_nuopc
   private :: ModelAdvance
   private :: ModelFinalize
 
-  integer :: stdout
   include "mpif.h"
+
+  !TODO:35->40
+  integer                        :: odat(40) !HK odat is 35
+  !TODO: added from w3cesmmd
+  ! runtype is used by W3SRCE (values are startup, branch, continue)
+      character(len=16),public :: runtype
+
+      ! if a run is a startup or branch run, then initfile is used
+      ! to construct the initial file and used in W3IORSMD
+      character(len=256), public :: initfile
+
+      ! if a run is a continue run, then casename is used to construct
+      ! the restart filename in W3IORSMD
+      character(len=256), public :: casename
+
+      logical, public :: rstwr   ! true => write restart at end of day
+      logical, public :: histwr  ! true => write history file (snapshot)
+
+      integer, public :: outfreq ! output frequency in hours
+      integer, public :: stdout  ! output log file
+
+      integer, public                  :: inst_index            ! number of current instance (ie. 1)
+      character(len=16), public :: inst_name   ! fullname of current instance (ie. "wav_0001")
+      character(len=16), public :: inst_suffix ! char string associated with instance
 
   !--------------------------------------------------------------------------
   ! Private module data
@@ -215,7 +237,7 @@ module wav_comp_nuopc
   integer                 :: flds_scalar_index_ny = 0
   integer                 :: flds_scalar_index_precip_factor = 0._r8
 
-  logical                 :: masterproc 
+  logical                 :: masterproc
   integer     , parameter :: debug = 1
   character(*), parameter :: modName =  "(wav_comp_nuopc)"
   character(*), parameter :: u_FILE_u = &
@@ -325,7 +347,10 @@ contains
        call ESMF_LogWrite(trim(subname)//' flds_scalar_name = '//trim(flds_scalar_name), ESMF_LOGMSG_INFO)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
-       call shr_sys_abort(subname//'Need to set attribute ScalarFieldName')
+       call ESMF_LogWrite(trim(subname)//'Need to set attribute ScalarFieldName',&
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
     endif
 
     call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldCount", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
@@ -336,7 +361,10 @@ contains
        call ESMF_LogWrite(trim(subname)//' flds_scalar_num = '//trim(logmsg), ESMF_LOGMSG_INFO)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
-       call shr_sys_abort(subname//'Need to set attribute ScalarFieldCount')
+       call ESMF_LogWrite(trim(subname)//'Need to set attribute ScalarFieldCount',&
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
     endif
 
     call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldIdxGridNX", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
@@ -347,7 +375,10 @@ contains
        call ESMF_LogWrite(trim(subname)//' : flds_scalar_index_nx = '//trim(logmsg), ESMF_LOGMSG_INFO)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
-       call shr_sys_abort(subname//'Need to set attribute ScalarFieldIdxGridNX')
+       call ESMF_LogWrite(trim(subname)//'Need to set attribute ScalarFieldIdxGridNX',&
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
     endif
 
     call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldIdxGridNY", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
@@ -358,7 +389,10 @@ contains
        call ESMF_LogWrite(trim(subname)//' : flds_scalar_index_ny = '//trim(logmsg), ESMF_LOGMSG_INFO)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
-       call shr_sys_abort(subname//'Need to set attribute ScalarFieldIdxGridNY')
+       call ESMF_LogWrite(trim(subname)//'Need to set attribute ScalarFieldIdxGridNY',&
+            ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+       rc = ESMF_FAILURE
+       return
     endif
 
     call advertise_fields(importState, exportState, flds_scalar_name, rc)
@@ -401,7 +435,8 @@ contains
     integer                        :: ndso, ndse, nds(13), ntrace(2), time0(2)
     integer                        :: timen(2), nh(4), iprt(6)
     integer                        :: J0  ! CMB
-    integer                        :: odat(35) !HK odat is 35
+    !TODO:35->40
+    !integer                        :: odat(40) !HK odat is 35
     integer                        :: i,j,npts
     integer                        :: ierr
     real, allocatable              :: x(:), y(:)
@@ -413,7 +448,7 @@ contains
     integer, allocatable, target   :: mask_local(:)
     integer, allocatable           :: gindex_lnd(:)
     integer, allocatable           :: gindex_sea(:)
-    integer, allocatable           :: gindex(:) 
+    integer, allocatable           :: gindex(:)
     logical                        :: prtfrm, flt
     logical                        :: flgrd(nogrp,ngrpp)  !flags for gridded output
     logical                        :: flgrd2(nogrp,ngrpp) !flags for coupling output
@@ -479,6 +514,7 @@ contains
     ! determine instance information
     !----------------------------------------------------------------------------
 
+    ! TODO:
     call get_component_instance(gcomp, inst_suffix, inst_index, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
@@ -504,6 +540,7 @@ contains
     nds( 2) = stdout
     nds( 3) = stdout
     nds( 4) = stdout
+#ifdef CESMCOUPLED
     nds( 5) = shr_file_getunit()
     nds( 6) = shr_file_getunit()
     nds( 7) = shr_file_getunit()
@@ -513,18 +550,19 @@ contains
     nds(11) = shr_file_getunit()
     nds(12) = shr_file_getunit()
     nds(13) = shr_file_getunit()
+#endif
 
     ndso      =  stdout
     ndse      =  stdout
     ntrace(1) =  nds(3)
     ntrace(2) =  10
 
-    ! Redirect share output to wav log
+#ifdef CESMCOUPLED
     call shr_file_getLogUnit (shrlogunit)
     call shr_file_setLogUnit (ndso)
+#endif
 
     if ( iaproc == napout ) write (ndso,900)
-    call shr_sys_flush(ndso)
 
     !--------------------------------------------------------------------
     ! Initialize run type
@@ -569,8 +607,8 @@ contains
     inflags1(1:5) = .true.
 
     if (wav_coupling_to_cice) then
-       inflags1(-7) = .true. ! LR ice thickness 
-       inflags1(-3) = .true. ! LR ice floe size 
+       inflags1(-7) = .true. ! LR ice thickness
+       inflags1(-3) = .true. ! LR ice floe size
        
        ! LR - I don't understand the difference between inflags1 and inflags2
        ! I am setting them both here to get thickness and floe size import to waves
@@ -589,7 +627,6 @@ contains
     ! NOTE - are not setting TIMEN here
 
     if ( iaproc == napout ) write (ndso,930)
-    call shr_sys_flush(ndso)
 
     ! Initial run or restart run
     if ( runtype == "initial") then
@@ -601,7 +638,7 @@ contains
     endif
     call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=start_tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call shr_cal_ymd2date(yy, mm, dd, start_ymd)
+    call ymd2date(yy, mm, dd, start_ymd)
 
     hh = start_tod/3600
     mm = (start_tod - (hh * 3600))/60
@@ -614,7 +651,7 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=stop_tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call shr_cal_ymd2date(yy, mm, dd, stop_ymd)
+    call ymd2date(yy, mm, dd, stop_ymd)
 
     hh = stop_tod/3600
     mm = (stop_tod - (hh * 3600))/60
@@ -626,7 +663,6 @@ contains
     call stme21 ( time0 , dtme21 )
     if ( iaproc .eq. napout ) write (ndso,931) dtme21
     if ( iaproc .eq. napout ) write (ndso,*) 'start_ymd, stop_ymd = ',start_ymd, stop_ymd
-    call shr_sys_flush(ndso)
     time = time0
 
     !--------------------------------------------------------------------
@@ -635,7 +671,6 @@ contains
 
     iostyp = 1        ! gridded field
     write (ndso,940) 'no dedicated output process, any file system '
-    call shr_sys_flush(ndso)
 
     ! Actually will need a new restart flag - since all of the ODAT
     ! should be set to 0 - since they are initializated in w3initmd
@@ -687,7 +722,7 @@ contains
     end do
 
     ! output index is now a in a 2D array
-    ! IDOUT(NOGRP,NGRPP)  
+    ! IDOUT(NOGRP,NGRPP)
     !   NOGRP = number of output field groups
     !   NGRPP = Max num of parameters per output
     !   NOGE(NOGRP) = number of output group elements
@@ -696,44 +731,44 @@ contains
     flgrd2(:,:) = .false.   ! coupled fields, w3init w3iog are not ready to deal with these yet
 
     ! 1) Forcing fields
-    flgrd( 1, 1)  = .false. ! Water depth       
-    flgrd( 1, 2)  = .false. ! Current vel.       
+    flgrd( 1, 1)  = .false. ! Water depth
+    flgrd( 1, 2)  = .false. ! Current vel.
     flgrd( 1, 3)  = .true.  ! Wind speed
-    flgrd( 1, 4)  = .false. ! Air-sea temp. dif.  
-    flgrd( 1, 5)  = .false. ! Water level         
+    flgrd( 1, 4)  = .false. ! Air-sea temp. dif.
+    flgrd( 1, 5)  = .false. ! Water level
     flgrd( 1, 6)  = .true.  ! Ice concentration     !MV - this was changed by CC - do we want this?
-    flgrd( 1, 7)  = .false. ! Iceberg damp coeffic   
+    flgrd( 1, 7)  = .false. ! Iceberg damp coeffic
 
     ! 2) Standard mean wave parameters
-    flgrd( 2, 1)  = .true.  ! Wave height         
-    flgrd( 2, 2)  = .false. ! Mean wave length    
+    flgrd( 2, 1)  = .true.  ! Wave height
+    flgrd( 2, 2)  = .false. ! Mean wave length
     flgrd( 2, 3)  = .true.  ! Mean wave period(+2)
     flgrd( 2, 4)  = .true.  ! Mean wave period(-1)
     flgrd( 2, 5)  = .true.  ! Mean wave period(+1)
     flgrd( 2, 6)  = .true.  ! Peak frequency        !MV - changed by CC - do we want this?
     flgrd( 2, 7)  = .true.  ! Mean wave dir. a1b1   !MV - changed by CC - do we want this?
-    flgrd( 2, 8)  = .false. ! Mean dir. spr. a1b1 
-    flgrd( 2, 9)  = .false. ! Peak direction      
+    flgrd( 2, 8)  = .false. ! Mean dir. spr. a1b1
+    flgrd( 2, 9)  = .false. ! Peak direction
     flgrd( 2, 10) = .false. ! Infragravity height
-    flgrd( 2, 11) = .false. ! Space-Time Max E   
-    flgrd( 2, 12) = .false. ! Space-Time Max Std 
-    flgrd( 2, 13) = .false. ! Space-Time Hmax    
+    flgrd( 2, 11) = .false. ! Space-Time Max E
+    flgrd( 2, 12) = .false. ! Space-Time Max Std
+    flgrd( 2, 13) = .false. ! Space-Time Hmax
     flgrd( 2, 14) = .false. ! Spc-Time Hmax^crest
     flgrd( 2, 15) = .false. ! STD Space-Time Hmax
-    flgrd( 2, 16) = .false. ! STD ST Hmax^crest  
-    flgrd( 2, 17) = .false. ! Dominant wave bT   
+    flgrd( 2, 16) = .false. ! STD ST Hmax^crest
+    flgrd( 2, 17) = .false. ! Dominant wave bT
 
     ! 3) Frequency-dependent standard parameters
     !HK These were not set to true in the previous CESM version
-    !HK whether the 1D Freq. Spectrum gets allocated is decided 
+    !HK whether the 1D Freq. Spectrum gets allocated is decided
     !HK in the grid_inp file
     !HK ~/ww3_toolbox/grids/grid_inp/ww3_grid.inp.ww3a
     !HK namelist section:   &OUTS E3D = 1 /
-    flgrd( 3, 1)  = .true.  !1D Freq. Spectrum  !HK EF 
-    flgrd( 3, 2)  = .false. !Mean wave dir. a1b1 
-    flgrd( 3, 3)  = .false. !Mean dir. spr. a1b1 
-    flgrd( 3, 4)  = .false. !Mean wave dir. a2b2 
-    flgrd( 3, 5)  = .false. !Mean dir. spr. a2b2 
+    flgrd( 3, 1)  = .true.  !1D Freq. Spectrum  !HK EF
+    flgrd( 3, 2)  = .false. !Mean wave dir. a1b1
+    flgrd( 3, 3)  = .false. !Mean dir. spr. a1b1
+    flgrd( 3, 4)  = .false. !Mean wave dir. a2b2
+    flgrd( 3, 5)  = .false. !Mean dir. spr. a2b2
     flgrd( 3, 6)  = .false. !Wavenumber array   '
 
     ! 4) Spectral Partitions parameters
@@ -824,43 +859,46 @@ contains
        end do
        if ( flt ) write (ndso,1945) 'no fields defined'
     end if
-    call shr_sys_flush(ndso)
 
     !--------------------------------------------------------------------
     ! Wave model initializations
     !--------------------------------------------------------------------
-
-    ! Notes on ww3 initialization:
-    ! ww3 read initialization occurs in w3iors (which is called by initmd)
-    ! For a startup (including hybrid) or branch run the initial datafile is
-    ! set in namelist input 'initfile'
-    ! For a continue run - the initfile vluae is created from the time(1:2)
-    ! array set below
-
-    if ( iaproc .eq. napout ) write (ndso,950)
-    if ( iaproc .eq. napout ) write (ndso,951) 'wave model ...'
-    call shr_sys_flush(ndso)
-
-    ! Read namelist (set initfile in w3cesmmd)
-    if ( iaproc .eq. napout ) then
-       write(ndso,*) 'Read in ww3_inparm namelist from wav_in'//trim(inst_suffix)
-       open(newunit=unitn, file='wav_in'//trim(inst_suffix), status='old')
-       call shr_nl_find_group_name(unitn, 'ww3_inparm', status=ierr)
-       if (ierr == 0) then
-          read (unitn, ww3_inparm, iostat=ierr)
-          if (ierr /= 0) then
-             call shr_sys_abort('problem reading ww3_inparm namelist')
-          end if
-       end if
-       close( unitn )
-    end if
-    call shr_mpi_bcast(initfile, mpi_comm)
-    call shr_mpi_bcast(outfreq, mpi_comm)
-
-    ! Set casename (in w3cesmmd)
-    call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    read(cvalue,*) casename
+! TODO:
+!    ! Notes on ww3 initialization:
+!    ! ww3 read initialization occurs in w3iors (which is called by initmd)
+!    ! For a startup (including hybrid) or branch run the initial datafile is
+!    ! set in namelist input 'initfile'
+!    ! For a continue run - the initfile vluae is created from the time(1:2)
+!    ! array set below
+!
+!    if ( iaproc .eq. napout ) write (ndso,950)
+!    if ( iaproc .eq. napout ) write (ndso,951) 'wave model ...'
+!
+!    ! Read namelist (set initfile in w3cesmmd)
+!    if ( iaproc .eq. napout ) then
+!       write(ndso,*) 'Read in ww3_inparm namelist from wav_in'//trim(inst_suffix)
+!       open(newunit=unitn, file='wav_in'//trim(inst_suffix), status='old')
+!       !call shr_nl_find_group_name(unitn, 'ww3_inparm', status=ierr)
+!       if (ierr == 0) then
+!          read (unitn, ww3_inparm, iostat=ierr)
+!          if (ierr /= 0) then
+!             call ESMF_LogWrite(trim(subname)//' problem reading ww3_inparm namelist',&
+!                  ESMF_LOGMSG_ERROR, line=__LINE__, file=u_FILE_u)
+!             rc = ESMF_FAILURE
+!             return
+!          end if
+!       end if
+!       close( unitn )
+!    end if
+!    call ESMF_VMBroadcast(VM, initfile, count=len(initfile), rootPet=0, rc=rc)
+!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+!    call ESMF_VMBroadcast(VM, outfreq, count=len(outfreq), rootPet=0, rc=rc)
+!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+!
+!    ! Set casename (in w3cesmmd)
+!    call NUOPC_CompAttributeGet(gcomp, name='case_name', value=cvalue, rc=rc)
+!    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+!    read(cvalue,*) casename
 
     ! Read in input data and initialize the model
     ! w3init calls w3iors which:
@@ -878,7 +916,6 @@ contains
     !HK IsMulti does not appear to be used, setting to .true.
     call w3init ( 1, .true., 'ww3', nds, ntrace, odat, flgrd, flgrd2, flg, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
-    call shr_sys_flush(ndso)
 
     ! HK these values are appropriate for ww3a only
     ! other grids will need smaller timesteps
@@ -890,10 +927,11 @@ contains
     !dtmin  = real(dtime_sync) / 12 !checked by adrean
 
     ! gx17
-    !180.0000       180.0000       180.0000       15.00000 
-    dtmax  = 1800.0000 ! LR 
+    !180.0000       180.0000       180.0000       15.00000
+    dtmax  = 1800.0000 ! LR
     dtcfl  = 600.0000
-    dtcfli = 1800.0000
+    !TODO: not present?
+    !dtcfli = 1800.0000
     dtmin  = 1800.00000
 
     call mpi_barrier ( mpi_comm, ierr )
@@ -948,11 +986,12 @@ contains
           end if
        end if
     end do
+    deallocate(mask_global)
 
     !-------------
     ! create a global index that includes both sea and land - but put land at the end
     !-------------
-    nlnd = (my_lnd_end - my_lnd_start + 1) 
+    nlnd = (my_lnd_end - my_lnd_start + 1)
     allocate(gindex(nlnd + nseal))
     do ncnt = 1,nlnd + nseal
        if (ncnt <= nseal) then
@@ -969,7 +1008,7 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !-------------
-    ! create the mesh 
+    ! create the mesh
     !-------------
     call NUOPC_CompAttributeGet(gcomp, name='mesh_wav', value=cvalue, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -994,7 +1033,6 @@ contains
     !--------------------------------------------------------------------
     ! end redirection of share output to wav log
     !--------------------------------------------------------------------
-    call shr_sys_flush(ndso)
     call shr_file_setlogunit (shrlogunit)
 
 
@@ -1063,7 +1101,7 @@ contains
     ! -------------------------------------------------------------------
 
     !--------------------------------------------------------------------
-    ! Create export state 
+    ! Create export state
     !--------------------------------------------------------------------
 
     call NUOPC_ModelGet(gcomp, exportState=exportState, rc=rc)
@@ -1138,31 +1176,31 @@ contains
 
       wav_tauice1              (:) = 0.
       wav_tauice2              (:) = 0.
-      wave_elevation_spectrum1 (:) = 0. 
-      wave_elevation_spectrum2 (:) = 0. 
-      wave_elevation_spectrum3 (:) = 0. 
-      wave_elevation_spectrum4 (:) = 0. 
-      wave_elevation_spectrum5 (:) = 0. 
-      wave_elevation_spectrum6 (:) = 0. 
-      wave_elevation_spectrum7 (:) = 0. 
-      wave_elevation_spectrum8 (:) = 0. 
-      wave_elevation_spectrum9 (:) = 0. 
-      wave_elevation_spectrum10(:) = 0. 
-      wave_elevation_spectrum11(:) = 0. 
-      wave_elevation_spectrum12(:) = 0. 
-      wave_elevation_spectrum13(:) = 0. 
-      wave_elevation_spectrum14(:) = 0. 
-      wave_elevation_spectrum15(:) = 0. 
-      wave_elevation_spectrum16(:) = 0. 
-      wave_elevation_spectrum17(:) = 0. 
-      wave_elevation_spectrum18(:) = 0. 
-      wave_elevation_spectrum19(:) = 0. 
-      wave_elevation_spectrum20(:) = 0. 
-      wave_elevation_spectrum21(:) = 0. 
-      wave_elevation_spectrum22(:) = 0. 
-      wave_elevation_spectrum23(:) = 0. 
-      wave_elevation_spectrum24(:) = 0. 
-      wave_elevation_spectrum25(:) = 0. 
+      wave_elevation_spectrum1 (:) = 0.
+      wave_elevation_spectrum2 (:) = 0.
+      wave_elevation_spectrum3 (:) = 0.
+      wave_elevation_spectrum4 (:) = 0.
+      wave_elevation_spectrum5 (:) = 0.
+      wave_elevation_spectrum6 (:) = 0.
+      wave_elevation_spectrum7 (:) = 0.
+      wave_elevation_spectrum8 (:) = 0.
+      wave_elevation_spectrum9 (:) = 0.
+      wave_elevation_spectrum10(:) = 0.
+      wave_elevation_spectrum11(:) = 0.
+      wave_elevation_spectrum12(:) = 0.
+      wave_elevation_spectrum13(:) = 0.
+      wave_elevation_spectrum14(:) = 0.
+      wave_elevation_spectrum15(:) = 0.
+      wave_elevation_spectrum16(:) = 0.
+      wave_elevation_spectrum17(:) = 0.
+      wave_elevation_spectrum18(:) = 0.
+      wave_elevation_spectrum19(:) = 0.
+      wave_elevation_spectrum20(:) = 0.
+      wave_elevation_spectrum21(:) = 0.
+      wave_elevation_spectrum22(:) = 0.
+      wave_elevation_spectrum23(:) = 0.
+      wave_elevation_spectrum24(:) = 0.
+      wave_elevation_spectrum25(:) = 0.
     endif
 
     ! Set global grid size scalars in export state
@@ -1201,7 +1239,7 @@ contains
     integer          :: time0(2)
     integer          :: timen(2)
     integer          :: shrlogunit ! original log unit and level
-    character(len=*),parameter :: subname = '(wav_comp_nuopc:ModelAdvance) ' 
+    character(len=*),parameter :: subname = '(wav_comp_nuopc:ModelAdvance) '
     !-------------------------------------------------------
 
     !------------
@@ -1234,7 +1272,7 @@ contains
     endif
 
     !------------
-    ! Determine time info 
+    ! Determine time info
     !------------
 
     ! use current time for next time step the NUOPC clock is not updated
@@ -1244,7 +1282,7 @@ contains
     call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call shr_cal_ymd2date(yy, mm, dd, ymd)
+    call ymd2date(yy, mm, dd, ymd)
     hh = tod/3600
     mm = (tod - (hh * 3600))/60
     ss = tod - (hh*3600) - (mm*60)
@@ -1293,7 +1331,7 @@ contains
     !------------
     ! Run the wave model for the given interval
     !------------
-    call w3wave ( 1, timen )
+    call w3wave ( 1, odat, timen )
 
     !------------
     ! Create export state
@@ -1307,7 +1345,6 @@ contains
     !------------
 
     call shr_file_setLogUnit (shrlogunit)
-    call shr_sys_flush(stdout)
 
   end subroutine ModelAdvance
 
@@ -1486,7 +1523,9 @@ contains
     ! Finalize routine
     !--------------------------------
 
-   print*, 'HK model finalize: ',  dtmax, dtcfl, dtcfli, dtmin
+   !print*, 'HK model finalize: ',  dtmax, dtcfl, dtcfli, dtmin
+   !TODO: dtcfli is ?
+   print*, 'HK model finalize: ',  dtmax, dtcfl, dtmin
     rc = ESMF_SUCCESS
     call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
