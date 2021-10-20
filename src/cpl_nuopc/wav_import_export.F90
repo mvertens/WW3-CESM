@@ -6,11 +6,7 @@ module wav_import_export
   use wav_kind_mod    , only : r8 => shr_kind_r8
   use wav_shr_methods , only : ymd2date
   use wav_shr_methods , only : chkerr
-#ifdef CESMCOUPLED
-    use w3constants   , only : grav, tpi, dwat
-#else
-    use constants     , only : grav, tpi, dwat
-#endif
+  use w3constants     , only : grav, tpi, dwat
 
   implicit none
   private ! except
@@ -293,7 +289,8 @@ contains
        if (state_fldchk(importState, 'So_u')) then
           call state_getfldptr(importState, 'So_u', fldptr1d=so_u, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:)  = 0._r8
+          data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -306,8 +303,8 @@ contains
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                CX0(ix,iy)  = temp_global(n) ! ocn u current
-                CXN(ix,iy)  = temp_global(n)
+                CX0(ix,iy) = temp_global(n) ! ocn u current
+                CXN(ix,iy) = temp_global(n)
              end do
           end do
        end if
@@ -317,7 +314,8 @@ contains
        if (state_fldchk(importState, 'So_v')) then
           call state_getfldptr(importState, 'So_v', fldptr1d=so_v, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:)  = 0._r8
+          data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -349,7 +347,8 @@ contains
        if (state_fldchk(importState, 'Sa_u')) then
           call state_getfldptr(importState, 'Sa_u', fldptr1d=sa_u, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global     = 0._r8
+          data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -357,13 +356,13 @@ contains
              data_global(ix + (iy-1)*nx) = sa_u(n)
           end do
           call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
-          data_global(:) = temp_global(:)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                WX0(ix,iy)  = data_global(n)  ! atm u wind
-                WXN(ix,iy)  = data_global(n)
+                WX0(ix,iy) = temp_global(n)  ! atm u wind
+                WXN(ix,iy) = temp_global(n)
              end do
           end do
        end if
@@ -374,7 +373,8 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           call state_getfldptr(importState, 'Sa_v', fldptr1d=sa_v, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          temp_global     = 0._r8
+          data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -382,7 +382,7 @@ contains
              temp_global(ix + (iy-1)*nx) = sa_v(n)
           end do
           call ESMF_VMAllReduce(vm, sendData=temp_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
-          temp_global(:) = temp_global(:)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end if
        n = 0
        do iy = 1,NY
@@ -403,6 +403,7 @@ contains
           call state_getfldptr(importState, 'So_t', fldptr1d=so_t, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -434,7 +435,8 @@ contains
        if (state_fldchk(importState, 'Si_ifrac')) then
           call state_getfldptr(importState, 'Si_ifrac', fldptr1d=si_ifrac, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global = 0._r8
+          data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
@@ -461,7 +463,8 @@ contains
     !       if (ChkErr(rc,__LINE__,u_FILE_u)) return
     !       call state_getfldptr(importState, 'So_bldepth', fldptr1d=so_bldepth, rc=rc)
     !       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    !       data_global = 0._r8
+    !       data_global(:) = 0._r8
+    !       temp_global(:) = 0._r8
     !       do n = 1, nseal
     !          isea = iaproc + (n-1)*naproc
     !          ix = mapsf(isea,1)
@@ -518,6 +521,7 @@ contains
           call state_getfldptr(importState, 'Si_floediam', fldptr1d=si_floediam, rc=rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           data_global(:) = 0._r8
+          temp_global(:) = 0._r8
           do n = 1, nseal
              isea = iaproc + (n-1)*naproc
              ix = mapsf(isea,1)
