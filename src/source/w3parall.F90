@@ -369,7 +369,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: NK, NK2, NTH, NSPEC, SIG, DSIP, ECOS, ESIN, &
                           EC2, ESC, ES2, FACHFA, MAPWN, FLCTH, FLCK,  &
                           CTMAX, DMIN, DTH, CTHG0S, MAPSF
@@ -511,7 +511,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: NK, NK2, NTH, NSPEC, SIG, DSIP, ECOS, ESIN, &
                           EC2, ESC, ES2, FACHFA, MAPWN, FLCTH, FLCK,  &
                           CTMAX, DMIN, DTH, MAPSF
@@ -642,7 +642,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: NK, NK2, NTH, NSPEC, SIG, DSIP, ECOS, ESIN, &
                           EC2, ESC, ES2, FACHFA, MAPWN, FLCTH, FLCK,  &
                           CTMAX, DMIN, DTH, MAPSF
@@ -839,7 +839,7 @@
 !/
 !/ ------------------------------------------------------------------- /
       USE W3ADATMD, ONLY: MPI_COMM_WAVE, MPI_COMM_WCMP
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: NSEA
       USE W3ODATMD, ONLY: NTPROC, NAPROC, IAPROC
       IMPLICIT NONE
@@ -916,7 +916,7 @@
 !/
       USE W3ODATMD, ONLY: OUTPTS, IAPROC, NAPROC
       USE W3GDATMD, ONLY: GTYPE, UNGTYPE, MAPSF
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       IMPLICIT NONE
 !/ ------------------------------------------------------------------- /
 !/ Parameter list
@@ -991,7 +991,7 @@
 !/
       USE W3ODATMD, ONLY: OUTPTS, IAPROC, NAPROC
       USE W3GDATMD, ONLY: GTYPE, UNGTYPE, MAPSF
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       IMPLICIT NONE
 !/ ------------------------------------------------------------------- /
 !/ Parameter list
@@ -1069,7 +1069,7 @@
 !/
       USE W3ODATMD, ONLY: OUTPTS, IAPROC, NAPROC
       USE W3GDATMD, ONLY: GTYPE, UNGTYPE
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
 !/ ------------------------------------------------------------------- /
 !/ Parameter list
 !/
@@ -1085,7 +1085,7 @@
 !
       USE W3ODATMD, ONLY: OUTPTS, IAPROC, NAPROC
       USE W3GDATMD, ONLY: GTYPE, UNGTYPE
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       IMPLICIT NONE
       INTEGER, intent(in) :: JSEA
       INTEGER, intent(out) :: ISEA

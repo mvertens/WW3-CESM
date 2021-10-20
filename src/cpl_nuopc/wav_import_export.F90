@@ -6,11 +6,7 @@ module wav_import_export
   use wav_kind_mod    , only : r8 => shr_kind_r8
   use wav_shr_methods , only : ymd2date
   use wav_shr_methods , only : chkerr
-#ifdef CESMCOUPLED
-    use w3constants   , only : grav, tpi, dwat
-#else
-    use constants     , only : grav, tpi, dwat
-#endif
+  use constants       , only : grav, tpi, dwat
 
   implicit none
   private ! except

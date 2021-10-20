@@ -1390,7 +1390,7 @@
 !
 !/ ------------------------------------------------------------------- /
       USE W3SERVMD, ONLY: EXTCDE
-  USE W3CONSTANTS, ONLY: RADE
+  USE CONSTANTS, ONLY: RADE
 !
       IMPLICIT NONE
 !
@@ -2411,7 +2411,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       IMPLICIT NONE
 !/

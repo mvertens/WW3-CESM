@@ -135,7 +135,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD, ONLY: NTH, NK, ECOS, ESIN, SIG, SLNC1, FSPM, FSHF
       USE W3ODATMD, ONLY: NDSE, NDST
       USE W3SERVMD, ONLY: EXTCDE
