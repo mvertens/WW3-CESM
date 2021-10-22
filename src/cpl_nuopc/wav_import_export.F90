@@ -208,24 +208,12 @@ contains
     type(ESMF_Time)   :: ETime
     integer           :: ymd, tod
     integer           :: yy, mm, dd, hh, ss
-    real(r8)          :: temp_global(nx*ny)
-    real(r8)          :: data_global(nx*ny)
-    real(r8), pointer :: sa_u(:)
-    real(r8), pointer :: sa_v(:)
-    real(r8), pointer :: sa_tbot(:)
-    real(r8), pointer :: so_bldepth(:)
-    real(r8), pointer :: si_thick(:)
-    real(r8), pointer :: si_floediam(:)
-    real(r8), pointer :: so_u(:)
-    real(r8), pointer :: so_v(:)
-    real(r8), pointer :: so_t(:)
-    real(r8), pointer :: si_ifrac(:)
     integer           :: n, ix, iy, isea
     real(r8)          :: def_value
     integer           :: time0(2) ! starting time of the run interval
     integer           :: timen(2) ! ending time of the run interval
+    real(r8)          :: data_global(nx*ny)
     real(r8), allocatable :: data_global2(:)
-    real(r8), allocatable :: temp_global2(:)
     character(len=*), parameter :: subname='(wav_import_export:import_fields)'
     !---------------------------------------------------------------------------
 
@@ -294,24 +282,14 @@ contains
        CX0(:,:) = def_value   ! ocn u current
        CXN(:,:) = def_value
        if (state_fldchk(importState, 'So_u')) then
-          call state_getfldptr(importState, 'So_u', fldptr1d=so_u, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = so_u(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'So_u', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                CX0(ix,iy) = temp_global(n) ! ocn u current
-                CXN(ix,iy) = temp_global(n)
+                CX0(ix,iy) = data_global(n)
+                CXN(ix,iy) = data_global(n)
              end do
           end do
        end if
@@ -319,24 +297,14 @@ contains
        CY0(:,:) = def_value   ! ocn v current
        CYN(:,:) = def_value
        if (state_fldchk(importState, 'So_v')) then
-          call state_getfldptr(importState, 'So_v', fldptr1d=so_v, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = so_v(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'So_v', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                CY0(ix,iy) = temp_global(n) ! ocn v current
-                CYN(ix,iy) = temp_global(n)
+                CY0(ix,iy) = data_global(n)
+                CYN(ix,iy) = data_global(n)
              end do
           end do
        end if
@@ -352,24 +320,14 @@ contains
        WX0(:,:) = def_value   ! atm u wind
        WXN(:,:) = def_value
        if (state_fldchk(importState, 'Sa_u')) then
-          call state_getfldptr(importState, 'Sa_u', fldptr1d=sa_u, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = sa_u(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'Sa_u', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                WX0(ix,iy) = temp_global(n)  ! atm u wind
-                WXN(ix,iy) = temp_global(n)
+                WX0(ix,iy) = data_global(n)
+                WXN(ix,iy) = data_global(n)
              end do
           end do
        end if
@@ -378,25 +336,15 @@ contains
        WYN(:,:) = def_value
        if (state_fldchk(importState, 'Sa_v')) then
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          call state_getfldptr(importState, 'Sa_v', fldptr1d=sa_v, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             temp_global(ix + (iy-1)*nx) = sa_v(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=temp_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'Sa_v', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end if
        n = 0
        do iy = 1,NY
           do ix = 1,NX
              n = n + 1
-             WY0(ix,iy)  = temp_global(n)  ! atm v wind
-             WYN(ix,iy)  = temp_global(n)
+             WY0(ix,iy)  = data_global(n)
+             WYN(ix,iy)  = data_global(n)
           end do
        end do
 
@@ -404,37 +352,19 @@ contains
        DTN(:,:)  = def_value
        if ((state_fldchk(importState, 'So_t')) .and. (state_fldchk(importState, 'Sa_tbot'))) then
           allocate(data_global2(nx*ny))
-          allocate(temp_global2(nx*ny))
+          call SetGlobalInput(importState, 'Sa_tbot', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          call state_getfldptr(importState, 'Sa_tbot', fldptr1d=sa_tbot, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          call state_getfldptr(importState, 'So_t', fldptr1d=so_t, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:)  = 0._r8
-          temp_global(:)  = 0._r8
-          data_global2(:) = 0._r8
-          temp_global2(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global (ix + (iy-1)*nx) = sa_tbot(n)
-             data_global2(ix + (iy-1)*nx) = so_t(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global , recvData=temp_global , count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          call ESMF_VMAllReduce(vm, sendData=data_global2, recvData=temp_global2, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'So_t', vm, data_global2, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                DT0(ix,iy)  = temp_global(n) - temp_global2(n)  ! air temp - ocn temp
-                DTN(ix,iy)  = temp_global(n) - temp_global2(n)
+                DT0(ix,iy)  = data_global(n) - data_global2(n)
+                DTN(ix,iy)  = data_global(n) - data_global2(n)
              end do
           end do
           deallocate(data_global2)
-          deallocate(temp_global2)
        end if
     end if
 
@@ -445,23 +375,13 @@ contains
        TIN       = timen       ! time for ice field
        ICEI(:,:) = def_value   ! ice frac
        if (state_fldchk(importState, 'Si_ifrac')) then
-          call state_getfldptr(importState, 'Si_ifrac', fldptr1d=si_ifrac, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = si_ifrac(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'Si_ifrac', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                ICEI(ix,iy) = temp_global(n) ! ice frac
+                ICEI(ix,iy) = data_global(n)
              end do
           end do
        end if
@@ -472,23 +392,13 @@ contains
     ! ---------------
     if (INFLAGS1(5)) then
        if (state_fldchk(importState, 'So_bldepth')) then
-          call state_getfldptr(importState, 'So_bldepth', fldptr1d=so_bldepth, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = so_bldepth(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'So_bldepth', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                HML(ix,iy) = max(temp_global(n), 5.) ! ocn mixing layer depth
+                HML(ix,iy) = max(data_global(n), 5.) ! ocn mixing layer depth
              end do
           end do
        end if
@@ -501,22 +411,13 @@ contains
        TI1  = timen       ! time for ice field
        ICEP1(:,:) = def_value   ! ice thickness
        if (state_fldchk(importState, 'Si_thick')) then
-          call state_getfldptr(importState, 'Si_thick', fldptr1d=si_thick, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = si_thick(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'Si_thick', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                ICEP1(ix,iy) = temp_global(n) ! ice thickness
+                ICEP1(ix,iy) = data_global(n) ! ice thickness
              end do
           end do
        end if
@@ -529,23 +430,13 @@ contains
        TI5  = timen        ! time for ice field
        ICEP5(:,:) = def_value   ! ice floe size
        if (state_fldchk(importState, 'Si_floediam')) then
-          call state_getfldptr(importState, 'Si_floediam', fldptr1d=si_floediam, rc=rc)
-          if (ChkErr(rc,__LINE__,u_FILE_u)) return
-          data_global(:) = 0._r8
-          temp_global(:) = 0._r8
-          do n = 1, nseal
-             isea = iaproc + (n-1)*naproc
-             ix = mapsf(isea,1)
-             iy = mapsf(isea,2)
-             data_global(ix + (iy-1)*nx) = si_floediam(n)
-          end do
-          call ESMF_VMAllReduce(vm, sendData=data_global, recvData=temp_global, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+          call SetGlobalInput(importState, 'Si_floediam', vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           n = 0
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                ICEP5(ix,iy) = temp_global(n) ! ice floe diameter
+                ICEP5(ix,iy) = data_global(n) ! ice floe diameter
              end do
           end do
        end if
@@ -1433,5 +1324,41 @@ contains
 #endif
 
   end subroutine CalcRadstr2D
+
+  !====================================================================================
+  subroutine SetGlobalInput(importState, fldname, vm, global_output, rc)
+
+    use w3gdatmd, only: nseal, mapsta, mapfs, mapsf, nx, ny
+    use w3odatmd, only: naproc, iaproc
+
+    ! input/output variables
+    type(ESMF_State) , intent(in)  :: importState
+    character(len=*) , intent(in)  :: fldname
+    type(ESMF_VM)    , intent(in)  :: vm
+    real(r8)         , intent(out) :: global_output(nx*ny)
+    integer          , intent(out) :: rc
+
+    ! local variables
+    integer           :: n, isea, ix, iy
+    real(r8)          :: global_input(nx*ny)
+    real(r8), pointer :: dataptr(:)
+    !---------------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+
+    call state_getfldptr(importState, trim(fldname), fldptr1d=dataptr, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    global_output(:) = 0._r8
+    global_input(:) = 0._r8
+    do n = 1, nseal
+       isea = iaproc + (n-1)*naproc
+       ix = mapsf(isea,1)
+       iy = mapsf(isea,2)
+       global_input(ix + (iy-1)*nx) = dataptr(n)
+    end do
+    call ESMF_VMAllReduce(vm, sendData=global_input, recvData=global_output, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+  end subroutine SetGlobalInput
 
 end module wav_import_export

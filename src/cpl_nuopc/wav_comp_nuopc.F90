@@ -519,10 +519,11 @@ contains
     ! determine instance information
     !----------------------------------------------------------------------------
 
+#ifdef CESMCOUPLED
     call get_component_instance(gcomp, inst_suffix, inst_index, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
     inst_name = "WAV"//trim(inst_suffix)
+#endif
 
     !----------------------------------------------------------------------------
     ! reset shr logging to my log file
@@ -544,6 +545,7 @@ contains
     nds( 2) = stdout
     nds( 3) = stdout
     nds( 4) = stdout
+#ifdef CESMCOUPLED
     nds( 5) = shr_file_getunit()
     nds( 6) = shr_file_getunit()
     nds( 7) = shr_file_getunit()
@@ -553,7 +555,7 @@ contains
     nds(11) = shr_file_getunit()
     nds(12) = shr_file_getunit()
     nds(13) = shr_file_getunit()
-
+#endif
     ndso      =  stdout
     ndse      =  stdout
     ntrace(1) =  nds(3)
@@ -1106,10 +1108,9 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call state_getfldptr(exportState, 'Sw_vstokes', sw_vstokes, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    sw_lamult                (:) = 1.
-    sw_ustokes               (:) = 0.
-    sw_vstokes               (:) = 0.
+    sw_lamult (:) = 1.
+    sw_ustokes(:) = 0.
+    sw_vstokes(:) = 0.
 
     if (wav_coupling_to_cice) then
       call state_getfldptr(exportState, 'wav_tauice1', wav_tauice1, rc=rc)
