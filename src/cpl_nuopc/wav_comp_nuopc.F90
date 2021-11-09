@@ -498,7 +498,8 @@ contains
     ! IO set-up
     !--------------------------------------------------------------------
 
-    ! 1.b For WAVEWATCH III (See W3INIT) ??? ask adrean if i am missing something
+#ifdef CESMCOUPLED
+    ! 1.b For WAVEWATCH III (See W3INIT)
     !
     ! The following units are referenced in module w3initmd
     ! NDS(1) ! OUTPUT LOG: General output unit number ("log file") (NDS0)
@@ -519,11 +520,9 @@ contains
     ! determine instance information
     !----------------------------------------------------------------------------
 
-#ifdef CESMCOUPLED
     call get_component_instance(gcomp, inst_suffix, inst_index, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     inst_name = "WAV"//trim(inst_suffix)
-#endif
 
     !----------------------------------------------------------------------------
     ! reset shr logging to my log file
@@ -541,21 +540,24 @@ contains
     call set_component_logging(gcomp, masterproc, stdout, shrlogunit, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    nds( 1) = stdout
-    nds( 2) = stdout
-    nds( 3) = stdout
-    nds( 4) = stdout
-#ifdef CESMCOUPLED
-    nds( 5) = shr_file_getunit()
-    nds( 6) = shr_file_getunit()
-    nds( 7) = shr_file_getunit()
-    nds( 8) = shr_file_getunit()
-    nds( 9) = shr_file_getunit()
-    nds(10) = shr_file_getunit()
-    nds(11) = shr_file_getunit()
-    nds(12) = shr_file_getunit()
-    nds(13) = shr_file_getunit()
-#endif
+    ! Identify available unit numbers
+    ! Each ESMF_UtilIOUnitGet is followed by an OPEN statement for that
+    ! unit so that subsequent ESMF_UtilIOUnitGet calls do not return the
+    ! the same unit.  After getting all the available unit numbers, close
+    ! the units since they will be opened within W3INIT.
+    nds(1) = stdout
+    nds(2) = stdout
+    nds(3) = stdout
+    nds(4) = stdout
+    call ESMF_UtilIOUnitGet(nds(5)) ; open(unit=nds(5)  , status='scratch'); close(nds(5)
+    call ESMF_UtilIOUnitGet(nds(6)) ; open(unit=nds(6)  , status='scratch'); close(nds(6)
+    call ESMF_UtilIOUnitGet(nds(7)) ; open(unit=nds(7)  , status='scratch'); close(nds(7)
+    call ESMF_UtilIOUnitGet(nds(8)) ; open(unit=nds(8)  , status='scratch'); close(nds(8)
+    call ESMF_UtilIOUnitGet(nds(9)) ; open(unit=nds(9)  , status='scratch'); close(nds(9)
+    call ESMF_UtilIOUnitGet(nds(10)); open(unit=nds(10) , status='scratch'); close(nds(10)
+    call ESMF_UtilIOUnitGet(nds(11)); open(unit=nds(11) , status='scratch'); close(nds(11)
+    call ESMF_UtilIOUnitGet(nds(12)); open(unit=nds(12) , status='scratch'); close(nds(12)
+    call ESMF_UtilIOUnitGet(nds(13)); open(unit=nds(13) , status='scratch'); close(nds(13)
     ndso      =  stdout
     ndse      =  stdout
     ntrace(1) =  nds(3)
@@ -564,6 +566,7 @@ contains
     ! Redirect share output to wav log
     call shr_file_getLogUnit (shrlogunit)
     call shr_file_setLogUnit (ndso)
+#endif
 
     if ( iaproc == napout ) write (ndso,900)
 
