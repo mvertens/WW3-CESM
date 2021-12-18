@@ -514,7 +514,7 @@ contains
   end subroutine import_fields
 
   !====================================================================================
-  subroutine export_fields (gcomp, rc)
+  subroutine export_fields (gcomp, runtype, rc)
 
     !---------------------------------------------------------------------------
     ! Create the export state
@@ -532,8 +532,9 @@ contains
     use w3iogomd      , only : CALC_U3STOKES
 
     ! input/output/variables
-    type(ESMF_GridComp)  :: gcomp
-    integer, intent(out) :: rc
+    type(ESMF_GridComp)            :: gcomp
+    character(len=*) , intent(in)  :: runtype
+    integer          , intent(out) :: rc
 
     ! Local variables
     real(R8)          :: fillvalue = 1.0e30_R8                 ! special missing value
@@ -666,7 +667,7 @@ contains
     if (state_fldchk(exportState, 'Sw_z0')) then
        call state_getfldptr(exportState, 'Sw_z0', fldptr1d=z0rlen, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-       call CalcRoughl(z0rlen)
+       call CalcRoughl(z0rlen, runtype)
     endif
 
     !TODO: what is difference between uscurr/vscurr and sw_ustokes,sw_vstokes?
@@ -1208,7 +1209,7 @@ contains
   end subroutine CalcCharnk
 
   !===============================================================================
-  subroutine CalcRoughl ( wrln )
+  subroutine CalcRoughl ( wrln, runtype )
 
     ! Calculate 2D wave roughness length for export
 
@@ -1224,7 +1225,8 @@ contains
 #endif
 
     ! input/output variables
-    real(r8), pointer     :: wrln(:) ! 2D roughness length export field ponter
+    real(r8)         , pointer    :: wrln(:) ! 2D roughness length export field ponter
+    character(len=*) , intent(in) :: runtype
 
     ! local variables
     integer       :: isea, jsea, ix, iy

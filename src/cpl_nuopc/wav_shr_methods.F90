@@ -21,15 +21,10 @@ module wav_shr_methods
   use NUOPC           , only : NUOPC_CompAttributeGet
   use NUOPC_Model     , only : NUOPC_ModelGet
   use wav_kind_mod    , only : r8 => shr_kind_r8, i8 => shr_kind_i8, cl=>shr_kind_cl, cs=>shr_kind_cs
-  use wav_wrapper_mod , only : shr_file_setlogunit, shr_file_getLogUnit
 
   implicit none
   private
 
-  !TODO:
-  !public  :: memcheck
-  public  :: get_component_instance
-  public  :: set_component_logging
   public  :: state_getscalar
   public  :: state_setscalar
   public  :: state_reset
@@ -77,60 +72,6 @@ module wav_shr_methods
 
 !===============================================================================
 contains
-!===============================================================================
-
-  !subroutine memcheck(string, level, mastertask)
-
-  !  ! input/output variables
-  !  character(len=*) , intent(in) :: string
-  !  integer          , intent(in) :: level
-  !  logical          , intent(in) :: mastertask
-
-  !  ! local variables
-  !  integer :: ierr
-  !  integer, external :: GPTLprint_memusage
-  !  !-----------------------------------------------------------------------
-
-  !  if ((mastertask .and. memdebug_level > level) .or. memdebug_level > level+1) then
-  !     ierr = GPTLprint_memusage(string)
-  !  endif
-
-  !end subroutine memcheck
-
-!===============================================================================
-
-  subroutine get_component_instance(gcomp, inst_suffix, inst_index, rc)
-
-    ! input/output variables
-    type(ESMF_GridComp)            :: gcomp
-    character(len=*) , intent(out) :: inst_suffix
-    integer          , intent(out) :: inst_index
-    integer          , intent(out) :: rc
-
-    ! local variables
-    logical          :: isPresent
-    character(len=4) :: cvalue
-    !-----------------------------------------------------------------------
-
-    rc = ESMF_SUCCESS
-
-    call NUOPC_CompAttributeGet(gcomp, name="inst_suffix", isPresent=isPresent, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-
-    if (isPresent) then
-       call NUOPC_CompAttributeGet(gcomp, name="inst_suffix", value=inst_suffix, rc=rc)
-       if (chkerr(rc,__LINE__,u_FILE_u)) return
-       cvalue = inst_suffix(2:)
-       read(cvalue, *) inst_index
-    else
-       inst_suffix = ""
-       inst_index=1
-    endif
-
-  end subroutine get_component_instance
-
-!===============================================================================
-
 !===============================================================================
 
   subroutine state_getscalar(state, scalar_id, scalar_value, flds_scalar_name, flds_scalar_num, rc)

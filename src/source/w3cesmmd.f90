@@ -20,9 +20,8 @@
       logical, public :: histwr  ! true => write history file (snapshot)
 
       integer, public :: outfreq ! output frequency in hours
-      integer, public :: stdout  ! output log file
 
-      integer, public                  :: inst_index            ! number of current instance (ie. 1)
+      integer, public           :: inst_index  ! number of current instance (ie. 1)
       character(len=16), public :: inst_name   ! fullname of current instance (ie. "wav_0001")
       character(len=16), public :: inst_suffix ! char string associated with instance
 !/
