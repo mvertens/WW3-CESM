@@ -2402,7 +2402,9 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
 !/
       USE W3SERVMD, ONLY: EXTCDE
       USE W3ODATMD, only : IAPROC
-      USE W3CESMMD, ONLY : CASENAME, INST_SUFFIX    !CMB naming from cesm restarts
+#ifdef CESMCOUPLED
+      USE wav_cesm_mod, only : casename, inst_suffix    !CMB naming from cesm restarts
+#endif
       USE NETCDF
 !
       IMPLICIT NONE
@@ -2566,9 +2568,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
 !
 ! Fields ---------------------------------------------- *
 !
-
-
-!HK cesm history file
+#ifdef CESMCOUPLED
       ALLOCATE ( AUX2D1(NX,NY),AUX2D2(NX,NY),AUX2D3(NX,NY),AUX3DE(NX,NY,0:NOSWLL) )
       ALLOCATE ( AUX3DEF(NX,NY,E3DF(2,1):E3DF(3,1)) )
       YY =  TIME(1)/10000
@@ -2580,12 +2580,11 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
       TOTSEC = HH*3600+MN*60+SS
       EF_LEN=E3DF(3,1)-E3DF(2,1)+1
       if (len_trim(inst_suffix) > 0) then 
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') trim(CASENAME)&
-              &//'.ww3'//trim(inst_suffix)//'.hi.', &
-              YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
+         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+              trim(casename)//'.ww3'//trim(inst_suffix)//'.hi.',YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
       else 
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') trim(CASENAME)//'.ww3.hi.', &
-              YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
+         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+              trim(casename)//'.ww3.hi.',YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
       ENDIF
       ! write(*, *) 'w3iogomd: writing history ', FNAME
       INQUIRE(FILE=TRIM(FNAME),EXIST=EXISTS)
@@ -2612,8 +2611,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
          IERR = NF90_INQ_DIMID(NCID,'FREQ',dimid(4)) !EF_LEN=25
          CALL HANDLE_ERR(IERR,'INQ_DIMID4')
       ENDIF
-!HK end
-
+#endif
 
 ! Initialization ---------------------------------------------- *
 !
@@ -3268,19 +3266,20 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
 !
                   END IF
 !
-!     HK cesm history
+#if CESMCOUPLED                  
+                  ! cesm history
                   IF (NCLOOP == 1) THEN
-!                    write(ndse,*) 'CMB w3iogo NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
+                    ! write(ndse,*) 'CMB w3iogo NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
                     !--- no error checking here in case file/vars exists already ---
                     IF (WAUX1) THEN
-!                      write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX1=T, FLDSTR1, VARID1', TRIM(FLDSTR1), VARID1
+                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX1=T, FLDSTR1, VARID1', TRIM(FLDSTR1), VARID1
                       IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTR1),NF90_FLOAT,DIMID(1:2),VARID1)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"units",UNITSTR1)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"long_name",LNSTR1)
                     ENDIF
                     IF (WAUX2) THEN
-!                      write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX2=T, FLDSTR2, VARID2', TRIM(FLDSTR2), VARID2
+                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX2=T, FLDSTR2, VARID2', TRIM(FLDSTR2), VARID2
                       IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTR2),NF90_FLOAT,DIMID(1:2),VARID2)
                       IERR = NF90_PUT_ATT(NCID,VARID2,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARID2,"units",UNITSTR2)
@@ -3299,7 +3298,7 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"long_name",LNSTRE)
                     ENDIF
                     IF (WAUXEF) THEN
-!                      write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUXEF=T, FLDSTRE, VARIDE', TRIM(FLDSTRE), VARIDE
+                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUXEF=T, FLDSTRE, VARIDE', TRIM(FLDSTRE), VARIDE
                       IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTRE),NF90_FLOAT,(/DIMID(1),DIMID(2),DIMID(4)/),VARIDE)
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"units",UNITSTRE)
@@ -3307,12 +3306,10 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                    ENDIF
 
                   ELSEIF (NCLOOP == 2) THEN
-
-!                    write(ndse,*) 'CMB w3iogo write NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
+                    ! write(ndse,*) 'CMB w3iogo write NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
                     IF (WAUX1) THEN
-!                      write(ndso,*) 'w3iogo write ',trim(fldstr1)
-!                      call shr_sys_flush(ndso)
-!CMB                      WRITE ( NDSOG ) AUX1(1:NSEA)
+                       ! write(ndso,*) 'w3iogo write ',trim(fldstr1)
+                       !CMB WRITE ( NDSOG ) AUX1(1:NSEA)
                       AUX2D1 = UNDEF
                       DO ISEA=1, NSEA
                          AUX2D1(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX1(ISEA)
@@ -3323,9 +3320,8 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D1_'//TRIM(FLDSTR1))
                     ENDIF
                     IF (WAUX2) THEN
-!                      write(ndso,*) 'w3iogo write ',trim(fldstr2)
-!                      call shr_sys_flush(ndso)
-!CMB                      WRITE ( NDSOG ) AUX2(1:NSEA)
+                       ! write(ndso,*) 'w3iogo write ',trim(fldstr2)
+                       !CMB WRITE ( NDSOG ) AUX2(1:NSEA)
                       AUX2D2 = UNDEF
                       DO ISEA=1, NSEA
                          AUX2D2(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX2(ISEA)
@@ -3336,9 +3332,8 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D2_'//TRIM(FLDSTR2))
                     ENDIF
                     IF (WAUX3) THEN
-!                      write(ndso,*) 'w3iogo write ',trim(fldstr3)
-!                      call shr_sys_flush(ndso)
-!CMB                      WRITE ( NDSOG ) AUX3(1:NSEA)
+                      ! write(ndso,*) 'w3iogo write ',trim(fldstr3)
+                      !CMB WRITE ( NDSOG ) AUX3(1:NSEA)
                       AUX2D3 = UNDEF
                       DO ISEA=1, NSEA
                          AUX2D3(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX3(ISEA)
@@ -3349,9 +3344,8 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D3_'//TRIM(FLDSTR3))
                     ENDIF
                     IF (WAUXE) THEN
-!                      write(ndso,*) 'w3iogo write ',trim(fldstre)
-!                      call shr_sys_flush(ndso)
-!CMB                      WRITE ( NDSOG ) AUXE(1:NSEA,0:NOSWLL)
+                      ! write(ndso,*) 'w3iogo write ',trim(fldstre)
+                      !CMB WRITE ( NDSOG ) AUXE(1:NSEA,0:NOSWLL)
                       AUX3DE = UNDEF
                       DO ISEA=1, NSEA
                          AUX3DE(MAPSF(ISEA,1),MAPSF(ISEA,2),0:NOSWLL) = AUXE(ISEA,0:NOSWLL)
@@ -3362,9 +3356,8 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       CALL HANDLE_ERR(IERR,'PUT_VAR_AUX3DE_'//TRIM(FLDSTRE))
                     ENDIF
                     IF (WAUXEF) THEN
-!                      write(ndso,*) 'w3iogo write ',trim(fldstre)
-!                      call shr_sys_flush(ndso)
-!CMB                      WRITE ( NDSOG ) AUXEF(1:NSEA,E3DF(2,1):E3DF(3,1))
+                       ! write(ndso,*) 'w3iogo write ',trim(fldstre)
+                       !CMB  WRITE ( NDSOG ) AUXEF(1:NSEA,E3DF(2,1):E3DF(3,1))
                       AUX3DEF = UNDEF
                       DO ISEA=1, NSEA
                          AUX3DEF(MAPSF(ISEA,1),MAPSF(ISEA,2),E3DF(2,1):E3DF(3,1)) = AUXEF(ISEA,E3DF(2,1):E3DF(3,1))
@@ -3375,10 +3368,14 @@ print*, 'HK::ALERT inside W3FLGRDFLAG'
                       CALL HANDLE_ERR(IERR,'PUT_VAR_AUX3DE_'//TRIM(FLDSTRE))
                     ENDIF
 
-
                 ENDIF !NC 
 
-              ELSE IF (.FALSE.) THEN !CMB this was never called since loop is NCLOOP=1,2   force skip as precaution since NDSOG no longer exists
+              !CMB this was never called since loop is NCLOOP=1,2 force skip as
+              !precaution since NDSOG no longer exists
+              ELSE IF (.FALSE.) THEN 
+#else
+              ELSE
+#endif
 !
 !     Start of reading ......
 !

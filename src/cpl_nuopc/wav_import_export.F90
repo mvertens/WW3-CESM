@@ -12,7 +12,6 @@ module wav_import_export
 #else
   use constants       , only : grav, tpi, dwat
 #endif
-  use w3cesmmd        , only : runtype
 
   implicit none
   private ! except

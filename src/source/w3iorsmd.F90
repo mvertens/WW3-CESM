@@ -244,8 +244,8 @@
       USE W3PARALL, ONLY: INIT_GET_ISEA, INIT_GET_JSEA_ISPROC
       USE W3GDATMD, ONLY: NK, NTH
       ! begin CESM specific use statements
-      use shr_sys_mod, only : shr_sys_abort
-      use w3cesmmd   , only : casename, initfile, runtype, inst_suffix
+      use shr_sys_mod , only : shr_sys_abort
+      use wav_cesm_mod, only : casename, initfile, runtype, inst_suffix
       ! end CESM specific use statements
 !!!!!/PDLIB    USE PDLIB_FIELD_VEC!, only : UNST_PDLIB_READ_FROM_FILE, UNST_PDLIB_WRITE_TO_FILE
 !

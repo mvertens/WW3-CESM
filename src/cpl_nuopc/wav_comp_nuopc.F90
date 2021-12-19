@@ -142,7 +142,7 @@ module wav_comp_nuopc
   use wav_import_export     , only : state_getfldptr, state_fldchk
   use wav_shr_methods       , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit, ymd2date
 #ifdef CESMCOUPLED
-  use w3cesmmd              , only : runtype
+  use wav_cesm_mod          , only : runtype
 #endif
 
   implicit none
@@ -867,7 +867,7 @@ contains
     use w3wdatmd          , only : time
     use wav_import_export , only : import_fields, export_fields
 #ifdef CESMCOUPLED
-    use w3cesmmd          , only : rstwr, histwr, outfreq
+    use wav_cesm_mod      , only : rstwr, histwr, outfreq
 #endif
 
     ! arguments:
@@ -952,7 +952,7 @@ contains
 
 #ifdef CESMCOUPLED
     ! Determine if time to write cesm ww3 restart files
-    ! For CESM rstwr is set in w3cesmmd.F90 and used in w3wavmd to determine if restart should be written
+    ! rstwr is set in wav_cesm_mod.F90 and used in w3wavmd to determine if restart should be written
     call ESMF_ClockGetAlarm(clock, alarmname='alarm_restart', alarm=alarm, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     if (ESMF_AlarmIsRinging(alarm, rc=rc)) then
@@ -965,7 +965,7 @@ contains
     endif
 
     ! Determine if time to write cesm ww3 history files
-    ! For CESM rstwr is set in w3cesmmd.F90 and used in w3wavmd to determine if restart should be written
+    ! histwr is set in wav_cesm_mod.F90 and used in w3wavmd to determine if restart should be written
     histwr = .false.
     if (outfreq .gt. 0) then
        ! output every outfreq hours if appropriate
@@ -1209,10 +1209,8 @@ contains
     use w3wdatmd          , only : time
     use w3initmd          , only : w3init
     use wav_import_export , only : wav_coupling_to_cice, wav_coupling_to_mom
-#ifdef CESMCOUPLED    
-    use w3cesmmd          , only : casename, initfile, rstwr, histwr, outfreq
-    use w3cesmmd          , only : inst_index, inst_name, inst_suffix
-#endif
+    use wav_cesm_mod      , only : casename, initfile, rstwr, histwr, outfreq
+    use wav_cesm_mod      , only : inst_index, inst_name, inst_suffix
 
     ! input/output variables
     type(ESMF_GridComp)   :: gcomp
@@ -1503,7 +1501,7 @@ contains
     ! set in namelist input 'initfile'
     ! For a continue run, the initfile value is created from the time(1:2) array set below
 
-    ! Read namelist (set initfile in w3cesmmd)
+    ! Read namelist (set initfile in wav_cesm_mod)
     if ( root_task ) then
        write (stdout,'(a)')'  Initializations : '
        write (stdout,'(a)')' --------------------------------------------------'
@@ -1536,7 +1534,7 @@ contains
        return
     end if
 
-    ! Set casename (in w3cesmmd)
+    ! Set casename (in wav_cesm_mod)
     call NUOPC_CompAttributeGet(gcomp, name="case_name", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     if (isPresent .and. isSet) then

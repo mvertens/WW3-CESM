@@ -377,7 +377,9 @@
       USE W3PARALL, ONLY : INIT_GET_ISEA
  
       ! QL, 150823, flag for restart 
-      use w3cesmmd, only : RSTWR, HISTWR  
+#ifdef CESMCOUPLED
+      use wav_cesm_mod, only : RSTWR, HISTWR  
+#endif
 !
       IMPLICIT NONE
 !
@@ -600,20 +602,25 @@
 !
 ! 1.e Ice floe interval
 !
-! CMB needed for IS4METHOD=8 (not just for scattering anymore)
-       IF ( FLIC5 ) THEN
+#ifdef CESMCOUPLED
+        ! CMB needed for IS4METHOD=8 (not just for scattering anymore)
+        IF ( FLIC5 ) THEN
            IF ( TIC5(1) .GE. 0 ) THEN
-               DTI50   = DSEC21 ( TIC5 , TI5 )
+              DTI50   = DSEC21 ( TIC5 , TI5 )
            ELSE
-               DTI50   = 1.
+              DTI50   = 1.
            END IF
-       IF ( DTI50 .LT. 0. ) THEN
-          IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1006)
-             CALL EXTCDE ( 5 )
-          END IF
-       ELSE
-          DTI50   = 0.
-       END IF
+           IF ( DTI50 .LT. 0. ) THEN
+              IF ( IAPROC .EQ. NAPERR ) then
+                 WRITE (NDSE,'(a)') ' *** WAVEWATCH III ERROR IN W3WAVE :'
+                 WRITE (NDSE,'(a)') '     NEW IC5 FIELD BEFORE OLD IC5 FIELD '
+                 CALL EXTCDE ( 5 )
+              END IF
+           END IF
+        ELSE
+           DTI50   = 0.
+        END IF
+#endif
 !
 ! 2.  Determine next time from ending and output --------------------- /
 !     time and get corresponding time step.
@@ -864,27 +871,28 @@
 !
 ! 3.3.3 Update ice floe diameter
 !
-! CMB needed for IS4METHOD=8 (not just for scattering anymore)
-               IF ( FLIC5 .AND. DTI50.NE.0. ) THEN
-                   IF ( TIC5(1).GE.0 ) THEN
-                       IF ( DTI50 .LT. 0. ) THEN
-                           IDACT(14:14) = 'B'
-                         ELSE
-                           DTTST  = DSEC21 ( TIME, TI5 )
-                           IF ( DTTST .LE. 0.5*DTI50 ) IDACT(14:14) = 'U'
-                         END IF
-                     ELSE
-                       IDACT(14:14) = 'I'
-                     END IF
-!
-                   IF ( IDACT(14:14).NE.' ' ) THEN
-                    CALL W3UIC5( FLFRST )
-                       DTI50   = 0.
-                       FLACT  = .TRUE.
-                       FLMAP  = .TRUE.
-                     END IF
-!
-                 END IF
+#ifdef CESMCOUPLED
+            ! CMB needed for IS4METHOD=8 (not just for scattering anymore)
+            IF ( FLIC5 .AND. DTI50.NE.0. ) THEN
+               IF ( TIC5(1).GE.0 ) THEN
+                  IF ( DTI50 .LT. 0. ) THEN
+                     IDACT(14:14) = 'B'
+                  ELSE
+                     DTTST  = DSEC21 ( TIME, TI5 )
+                     IF ( DTTST .LE. 0.5*DTI50 ) IDACT(14:14) = 'U'
+                  END IF
+               ELSE
+                  IDACT(14:14) = 'I'
+               END IF
+               !
+               IF ( IDACT(14:14).NE.' ' ) THEN
+                  CALL W3UIC5( FLFRST )
+                  DTI50   = 0.
+                  FLACT  = .TRUE.
+                  FLMAP  = .TRUE.
+               END IF
+            END IF
+#endif
 !
 ! 3.4 Transform grid (if new water level).
 !
@@ -1340,16 +1348,20 @@
           FLGMPI = .FALSE.
           NRQMAX = 0
 !
-! CMB notes
-! dsec21 computes the difference between time1, time2 in sec
-! pretty sure tonext always equal to time on the hour
-! so this is getting called every hour
-! seems like it only needs to be done when histwr=T though 
-! so am chaning
-!          IF ( ( ( DSEC21(TIME,TONEXT(:,1)).EQ.0. ) .OR.     &
-!               ( DSEC21(TIME,TONEXT(:,7)).EQ.0. ) ).and.   &
+#ifdef CESMCOUPLED
+          ! CMB notes
+          ! dsec21 computes the difference between time1, time2 in sec
+          ! pretty sure tonext always equal to time on the hour
+          ! so this is getting called every hour
+          ! seems like it only needs to be done when histwr=T though 
+          ! so am chaning
           IF (  histwr .and.  &
                (FLOUT(1) .OR.  FLOUT(7)) ) THEN
+#else
+          IF ( ( ( DSEC21(TIME,TONEXT(:,1)).EQ.0. ) .OR.     &
+                 ( DSEC21(TIME,TONEXT(:,7)).EQ.0. ) ).and.   &
+               (FLOUT(1) .OR.  FLOUT(7)) ) THEN
+#endif
            IF (.NOT. LPDLIB .or. (GTYPE.ne.UNGTYPE)) THEN
              IF (NRQGO.NE.0 ) THEN
                CALL MPI_STARTALL ( NRQGO, IRQGO , IERR_MPI )
@@ -1359,11 +1371,16 @@
                NRQMAX    = MAX ( NRQMAX , NRQGO )
              END IF
 !
-! CMB note made this condition on mastertask since only wait on mastertask
-! probably no change since NRQGO2=0 when not mastertask
+#ifdef CESMCOUPLED
+             ! CMB note made this condition on mastertask since only wait on mastertask
+             ! probably no change since NRQGO2=0 when not mastertask
              IF ((NRQGO2.NE.0 ) .and. (IAPROC .eq. NAPFLD)) THEN
                CALL MPI_STARTALL ( NRQGO2, IRQGO2, IERR_MPI )
-              write(*,*) 'CMB histwr mpi_startall 2', histwr, NRQGO2, IERR_MPI
+               write(*,*) 'CMB histwr mpi_startall 2', histwr, NRQGO2, IERR_MPI
+#else
+             IF (NRQGO2.NE.0 ) THEN
+               CALL MPI_STARTALL ( NRQGO2, IRQGO2, IERR_MPI )
+#endif
                FLGMPI(1) = .TRUE.
                NRQMAX    = MAX ( NRQMAX , NRQGO2 )
              END IF
@@ -1379,10 +1396,14 @@
                     NRQMAX    = MAX ( NRQMAX , NRQPO )
                   END IF
           END IF
-!
-! CMB added conditional on rstwr
-! not sure this is need here anyway since startall is also done in w3iors
+
+#ifdef CESMCOUPLED
+          ! CMB added conditional on rstwr
+          ! not sure this is need here anyway since startall is also done in w3iors
           IF (( FLOUT(4) .AND. NRQRS.NE.0 ) .and. rstwr) THEN
+#else
+          IF (  FLOUT(4) .AND. NRQRS.NE.0 ) THEN
+#endif
                 IF ( DSEC21(TIME,TONEXT(:,4)).EQ.0. ) THEN
                     CALL MPI_STARTALL ( NRQRS, IRQRS , IERR_MPI )
                     write(*,*) 'CMB rstwr mpi_startall', rstwr, NRQRS, IERR_MPI
@@ -1426,17 +1447,24 @@
                   TOUT(:) = TONEXT(:,J)
                   DTTST   = DSEC21 ( TIME, TOUT )
 !
-                  ! QL, 160601, add history file flag
                   IF ( DTTST .EQ. 0. ) THEN
-                      IF ( (( J .EQ. 1 ) .OR. ( J .EQ. 7 )) .AND. HISTWR) THEN
+#ifdef CESMCOUPLED
+                      IF ( (( J .EQ. 1 ) .OR. ( J .EQ. 7 )) .AND. histwr) THEN
+#else
+                      IF ( ( J .EQ. 1 ) .OR. ( J .EQ. 7 ) ) THEN
+#endif
                           CALL MPI_WAITALL( NRQGO, IRQGO, STATIO, IERR_MPI )
                           FLGMPI(0) = .FALSE.
-                write(*,*) 'w3wavemd: hist flag 1', j, histwr, time, IERR_MPI
+#ifdef CESMCOUPLED
+                          write(*,*) 'w3wavemd: hist flag 1', j, histwr, time, IERR_MPI
+#endif
                           IF ( IAPROC .EQ. NAPFLD ) THEN 
                               IF ( FLGMPI(1) ) CALL MPI_WAITALL  &
                                  ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
                               FLGMPI(1) = .FALSE.
-                write(*,*) 'w3wavemd: hist flag 2', j, histwr, time, IERR_MPI
+#ifdef CESMCOUPLED
+                              write(*,*) 'w3wavemd: hist flag 2', j, histwr, time, IERR_MPI
+#endif
                               IF ( J .EQ. 1 ) CALL W3IOGO             &  !for master only????
                                  ( 'WRITE', NDS(7), ITEST, IMOD )
                           END IF
@@ -1505,8 +1533,10 @@
 !
             IF ( FLGMPI(0) ) CALL MPI_WAITALL                    &
                              ( NRQGO, IRQGO , STATIO, IERR_MPI )
+#ifdef CESMCOUPLED
             IF ( FLGMPI(1) .and. ( IAPROC .EQ. NAPFLD ) ) CALL MPI_WAITALL   & 
                              ( NRQGO2, IRQGO2 , STATIO, IERR_MPI )   !CMB added
+#endif
             IF ( FLGMPI(2) ) CALL MPI_WAITALL                    &
                              ( NRQPO, IRQPO1, STATIO, IERR_MPI )
             IF ( FLGMPI(4) ) CALL MPI_WAITALL                    &
@@ -1606,8 +1636,6 @@
                '     NEW ICE FIELD BEFORE OLD ICE FIELD '/)
  1005 FORMAT (/' *** WAVEWATCH III ERROR IN W3WAVE :'/                &
                '     NEW IC1 FIELD BEFORE OLD IC1 FIELD '/)
- 1006 FORMAT (/' *** WAVEWATCH III ERROR IN W3WAVE :'/                &
-               '     NEW IC5 FIELD BEFORE OLD IC5 FIELD '/)
  1030 FORMAT (/' *** WAVEWATCH III WARING IN W3WAVE :'/               &
                '     AT LEAST ONE PROCESSOR HAS 0 ACTIVE POINTS',     &
                    ' IN GRID',I3)
