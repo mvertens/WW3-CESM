@@ -70,19 +70,22 @@
 !      WLEV      R.A.  Public   Next water level field.
 !      ICEI      R.A.  Public   Ice concentrations.
 !      BERGI     R.A.  Public   Iceberg damping coefficient
-!      HML       R.A.  Public   Mixed layer depth, QL, 150525 !HK
+#ifdef CESMCOUPLED
+!      HML       R.A.  Public   Mixed layer depth
+#endif
 !      IINIT     Log.  Public   Flag for array initialization.
 !      FLLEV     Log.  Public   Flag for water level input.
 !      FLCUR     Log.  Public   Flag for current input.
 !      FLWIND    Log.  Public   Flag for wind input.
 !      FLICE     Log.  Public   Flag for ice input.
-!      FLHML     Log.  Public   Flag for mixed layer depth input. QL, 150525 HK
+#ifdef CESMCOUPLED
+!      FLHML     Log.  Public   Flag for mixed layer depth input.
+#endif
 !      INFLAGS1  L.A.  Public   Array consolidating the above four
 !                               flags, as well as four additional
 !                               data flags.
 !      INFLAGS2  L.A.  Public   Like INFLAGS1 but does *not* get changed
 !                               when model reads last record of ice.ww3
-! !HK TODO: INFLAGS2 vs INFLAGS1
 !      FLAGSC    L.A.  Public   Coupling or not for input variables
 !      JFIRST    Int   Public   First index of arrays related to
 !                               input fields.  At present this is
@@ -156,13 +159,15 @@
                                  CYN(:,:), WLEV(:,:), ICEI(:,:),      &
                                  BERGI(:,:), MUDT(:,:), MUDV(:,:),    &
                                  MUDD(:,:), ICEP1(:,:), ICEP2(:,:),   &
-                                 ICEP3(:,:), ICEP4(:,:), ICEP5(:,:),  &
-                                 HML(:,:) !HK
+                                 ICEP3(:,:), ICEP4(:,:), ICEP5(:,:)
+#ifdef CESMCOUPLED
+        REAL, POINTER         :: HML(:,:)
+#endif
         LOGICAL               :: IINIT
 ! note that if size of INFLAGS1 is changed, then TFLAGS in wminitmd.ftn
 !    also must be resized.
         LOGICAL               :: INFLAGS1(-7:12), FLAGSC(-7:12),      &
-                                 INFLAGS2(-7:12)  !HK why does this go to 12?
+                                 INFLAGS2(-7:12)
       END TYPE INPUT
 !/
 !/ Data storage
@@ -183,14 +188,18 @@
                                  CYN(:,:), WLEV(:,:), ICEI(:,:),      &
                                  BERGI(:,:), MUDT(:,:), MUDV(:,:),    &
                                  MUDD(:,:), ICEP1(:,:), ICEP2(:,:),   &
-                                 ICEP3(:,:), ICEP4(:,:), ICEP5(:,:),  &
-                                 HML(:,:)  !HK
+                                 ICEP3(:,:), ICEP4(:,:), ICEP5(:,:)
+#ifdef CESMCOUPLED
+      REAL, POINTER           :: HML(:,:)
+#endif
       LOGICAL, POINTER        :: IINIT
       LOGICAL, POINTER        :: INFLAGS1(:), INFLAGS2(:), FLAGSC(:)
       LOGICAL, POINTER        :: FLLEV, FLCUR, FLWIND, FLICE
       LOGICAL, POINTER        :: FLMTH, FLMVS, FLMDN
       LOGICAL, POINTER        :: FLIC1, FLIC2, FLIC3, FLIC4, FLIC5
-      LOGICAL, POINTER        :: FLHML !HK
+#ifdef CESMCOUPLED
+      LOGICAL, POINTER        :: FLHML
+#endif
 !/
       CONTAINS
 !/ ------------------------------------------------------------------- /
@@ -416,37 +425,33 @@
 ! -------------------------------------------------------------------- /
 ! 2.  Allocate arrays
 !
-
-!HK  ---- these are new flags ----
-!HK ice param. 1 - 5
+      ! ice param. 1 - 5
       FLIC1  => INPUTS(IMOD)%INFLAGS1(-7)
       FLIC2  => INPUTS(IMOD)%INFLAGS1(-6)
       FLIC3  => INPUTS(IMOD)%INFLAGS1(-5)
       FLIC4  => INPUTS(IMOD)%INFLAGS1(-4)
       FLIC5  => INPUTS(IMOD)%INFLAGS1(-3)
-!HK mud density
-!   mud thickness
-!   mud viscos.
-      FLMDN  => INPUTS(IMOD)%INFLAGS1(-2)
-      FLMTH  => INPUTS(IMOD)%INFLAGS1(-1)
-      FLMVS  => INPUTS(IMOD)%INFLAGS1(0)
-! HK  ------ end of new flags--------
-
 !
-!HK the following 4 flags are in 5.14 coupler
-!HK water levels
-!   currents
+      ! mud density
+      FLMDN  => INPUTS(IMOD)%INFLAGS1(-2)
+      ! mud thickness
+      FLMTH  => INPUTS(IMOD)%INFLAGS1(-1)
+      ! mud viscos.
+      FLMVS  => INPUTS(IMOD)%INFLAGS1(0)
+!
+      ! water levels
       FLLEV  => INPUTS(IMOD)%INFLAGS1(1)
+      ! currents
       FLCUR  => INPUTS(IMOD)%INFLAGS1(2)
-
-!HK winds
-!   ice fields
+!
+      ! winds
       FLWIND => INPUTS(IMOD)%INFLAGS1(3)
+      ! ice fields
       FLICE  => INPUTS(IMOD)%INFLAGS1(4)
-
-!HK HML
-      ! QL, 150525, from coupler, set in wav_comp_mct.F90 (HK TODO nuopc)
+#ifdef CESMCOUPLED
+      ! ocean boundary layer depth
       FLHML  => INPUTS(IMOD)%INFLAGS1(5)
+#endif
 !
 ! notes: future improvement: flags for ICEPx should be
 !     "all or nothing" rather than 5 individual flags
@@ -517,10 +522,9 @@
           INPUTS(IMOD)%BERGI = 0.
         END IF
 
-! QL, 150525, HML from coupler
-     IF ( FLHML  ) ALLOCATE ( INPUTS(IMOD)%HML(NX,NY) ) !HK TODO from nuopc
-
-
+#ifdef CESMCOUPLED
+      IF ( FLHML  ) ALLOCATE ( INPUTS(IMOD)%HML(NX,NY) )
+#endif
 !
       INPUTS(IMOD)%IINIT  = .TRUE.
 !
@@ -696,10 +700,9 @@
  
       FLWIND => INPUTS(IMOD)%INFLAGS1(3)
       FLICE  => INPUTS(IMOD)%INFLAGS1(4)
-      ! QL, 150525, HML !HK
+#ifdef CESMCOUPLED
       FLHML  => INPUTS(IMOD)%INFLAGS1(5)
-
-
+#endif
 !
       IF ( IINIT ) THEN
 !
@@ -753,11 +756,11 @@
               ICEI   => INPUTS(IMOD)%ICEI
               BERGI  => INPUTS(IMOD)%BERGI
             END IF
-          ! QL, 150525, HML !HK
+#ifdef CESMCOUPLED
           IF ( FLHML  ) THEN
               HML    => INPUTS(IMOD)%HML
             END IF
-
+#endif
 !
         END IF
 !

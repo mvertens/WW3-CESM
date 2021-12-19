@@ -530,10 +530,6 @@
       IFT    = LEN_TRIM(TFILE)
       J      = LEN_TRIM(FNMPRE)
 !
-!HK This is opening log.ww3  MDS(1)
-!HK      IF ( OUTPTS(IMOD)%IAPROC .EQ. OUTPTS(IMOD)%NAPLOG )             &
-!HK          OPEN (MDS(1),FILE=FNMPRE(:J)//LFILE(:IFL),ERR=888,IOSTAT=IERR)
-!
       IF ( MDS(3).NE.MDS(1) .AND. MDS(3).NE.MDS(4) .AND. TSTOUT ) THEN
           INQUIRE (MDS(3),OPENED=OPENED)
           IF ( .NOT. OPENED ) OPEN                                    &
@@ -542,12 +538,14 @@
 !
 ! 1.d Dataset unit numbers
 !
-!!/WW3DEBUGMPI     CALL TEST_MPI_STATUS("Case 6")
-!CMB These four NDS files are all sent to stdout, according to wav_comp_nuop 
-    ! NDS(1) ! OUTPUT LOG: General output unit number ("log file") (NDS0)
-    ! NDS(2) ! OUTPUT LOG: Error output unit number (NDSE)
-    ! NDS(3) ! OUTPUT LOG: Test output unit number (NDST)
-    ! NDS(4) ! OUTPUT LOG: Unit for 'direct' output (SCREEN)
+!!DEBUGMPI     CALL TEST_MPI_STATUS("Case 6")
+#ifdef CESMCOUPLED
+     ! CMB These four NDS files are all sent to stdout, according to wav_comp_nuop 
+     ! NDS(1) ! OUTPUT LOG: General output unit number ("log file") (NDS0)
+     ! NDS(2) ! OUTPUT LOG: Error output unit number (NDSE)
+     ! NDS(3) ! OUTPUT LOG: Test output unit number (NDST)
+     ! NDS(4) ! OUTPUT LOG: Unit for 'direct' output (SCREEN)
+#endif
       NDS    = MDS
       NDSO   = NDS(1)
       NDSE   = NDS(2)
@@ -762,17 +760,20 @@
 ! 4.  Set-up output times -------------------------------------------- *
 ! 4.a Unpack ODAT
 !
-      DO J=1, NOTYPE  ! CMB, FYI NOTYPE=7 is hardwired in w3odatmd.F90
+      DO J=1, NOTYPE  
         J0 = (J-1)*5
         TONEXT(1,J) =        ODAT(J0+1)
         TONEXT(2,J) =        ODAT(J0+2)
         DTOUT (  J) = REAL ( ODAT(J0+3) )
         TOLAST(1,J) =        ODAT(J0+4)
         TOLAST(2,J) =        ODAT(J0+5)
-! CMB 
+
+#ifdef CESMCOUPLED
+        ! CMB, FYI NOTYPE=7 is hardwired in w3odatmd.F90
         IF ( IAPROC .EQ. NAPLOG ) THEN
            write(ndso,*) 'CMB distribute odat ', j, TONEXT(:,J), DTOUT (  J)
         END IF
+#endif
       END DO
 
 !
@@ -798,7 +799,9 @@
 !
       FLOUT(2) = NPT .GT. 0
 !
-!CMB ???      FLOUT(3) = .TRUE.
+#ifdef CESMCOUPLED
+     !CMB FLOUT(3) = .TRUE. ???
+#endif
       FLOUT(3) = .FALSE.
 !
       FLOUT(4) = .TRUE.
@@ -876,19 +879,17 @@
  
         END DO
 
-! CMB trying to figure out this insanity
-! 1 & 4 are T, rest are F
-! 1 is supposed to be gridded
-! 4 is supposed to be restart
-
+#ifdef CESMCOUPLED
+      ! CMB trying to figure out this insanity
+      ! 1 & 4 are T, rest are F
+      ! 1 is supposed to be gridded
+      ! 4 is supposed to be restart
       IF ( IAPROC .EQ. NAPLOG ) THEN
          do J=1,NOTYPE
            write(ndso,*) 'CMB hist out ', J, FLOUT(J), TONEXT(:,J)
          end do
       END IF
-
-!
-
+#endif
 !
 ! 4.d Preprocessing for point output.
 !
@@ -1537,11 +1538,10 @@
                           STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD,  &
                           HCMAXD, QP, PTHP0, PQP, PPE, PGW, PSW, &
                           PTM1, PT1, PT2, PEP, WBT
-!HK--- LAMULT ------------------
+#ifdef CESMCOUPLED
       USE W3ADATMD, ONLY: LANGMT, LAPROJ, ALPHAL, LASL, LASLPJ,  &
                           ALPHALS, LAMULT
-!HK-----------------------------
- 
+#endif
       USE W3GDATMD, ONLY: NK
       USE W3ODATMD, ONLY: NDST, IAPROC, NAPROC, NTPROC, FLOUT,   &
                           NAPFLD, NAPPNT, NAPRST, NAPBPT, NAPTRK,&
@@ -2156,12 +2156,14 @@
                     END DO
                 END IF
 !
+#ifdef CESMCOUPLED
               IF ( FLGRDALL( 6, 13) ) THEN
                   IH     = IH + 1
                   IT     = IT + 1
       CALL MPI_SEND_INIT (LANGMT  (1),NSEALM , MPI_REAL, IROOT,   &
                                 IT, MPI_COMM_WAVE, IRQGO(IH), IERR)
                 END IF
+#endif
 !
               IF ( FLGRDALL( 7, 1) ) THEN
                   IH     = IH + 1

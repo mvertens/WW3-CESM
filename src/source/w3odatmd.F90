@@ -140,7 +140,6 @@
 !                               renamed to WRITE in routine.
 !      NRQGO(2)  Int.  Public   Number of MPI handles W3IOGO.
 !      IRQGO     I.A.  Public   Array with MPI handles W3IOGO.
-!HK flags for output: FLOGRD, flags for coupling: FLOGR2
 !      FLOGRD    L.A.  Public   FLags for output fields.
 !      FLOGR2    L.A.  Public   FLags for coupling fields.
 !      FLOGD     L.A.  Public   Flags for output groups
@@ -312,7 +311,9 @@
       INTEGER, PARAMETER      :: NGRPP = 20
       INTEGER, PARAMETER      :: DIMP = 15
       INTEGER                 :: NOGE(NOGRP)
-      INTEGER                 :: NOTYPE = 7 !HK this is nomally set in w3_shel, CMB made 7
+#ifdef CESMCOUPLED
+      INTEGER                 :: NOTYPE = 7 !this is nomally set in w3_shel, CMB made 7
+#endif
       INTEGER, PARAMETER      :: NOEXTR=  2
       CHARACTER(LEN=20)       :: IDOUT(NOGRP,NGRPP)
       CHARACTER(LEN=80)       :: FNMPRE = './'
@@ -655,7 +656,6 @@
           IDOUT(I,J) = 'Undefined / Not Used'
           END DO
         END DO
-!HK TODO QL output variables
 !
 ! 1) Forcing fields
 !
