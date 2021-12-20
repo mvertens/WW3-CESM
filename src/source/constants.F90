@@ -1,6 +1,6 @@
 #include "w3macros.h"
 !/ ------------------------------------------------------------------- /
-      MODULE W3CONSTANTS
+      MODULE CONSTANTS
 !/
 !/                  +-----------------------------------+
 !/                  | WAVEWATCH III           NOAA/NCEP |
@@ -396,6 +396,6 @@ SUBROUTINE KERKEI(X,KER,KEI)
    KEI=CYI/EXP(ZR)
 END SUBROUTINE KERKEI
 !/
-!/ End of module W3CONSTANTS ------------------------------------------- /
+!/ End of module CONSTANTS ------------------------------------------- /
 !/
-      END MODULE W3CONSTANTS
+      END MODULE CONSTANTS
