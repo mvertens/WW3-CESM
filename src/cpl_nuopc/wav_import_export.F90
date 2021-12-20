@@ -7,11 +7,7 @@ module wav_import_export
   use wav_shr_methods , only : ymd2date
   use wav_shr_methods , only : chkerr
   use wav_shr_methods , only : state_diagnose, state_reset
-#ifdef CESMCOUPLED
-  use w3constants     , only : grav, tpi, dwat
-#else
   use constants       , only : grav, tpi, dwat
-#endif
 
   implicit none
   private ! except

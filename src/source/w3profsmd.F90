@@ -120,7 +120,7 @@
 !/ ------------------------------------------------------------------- /
 !/
 !
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3TIMEMD, ONLY: DSEC21
 !
@@ -312,7 +312,7 @@
 !/ ------------------------------------------------------------------- /
 !/
 !
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3TIMEMD, ONLY: DSEC21
 !
@@ -1518,7 +1518,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: MAPSF, NSEAL, DMIN, IOBDP, MAPSTA, IOBP, MAPFS, NX
       USE W3ADATMD, ONLY: DW
  

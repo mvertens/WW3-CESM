@@ -157,7 +157,7 @@
 !
 !/ ------------------------------------------------------------------- /
       USE W3ODATMD, ONLY: IAPROC
-      USE W3CONSTANTS, ONLY: TPIINV
+      USE CONSTANTS, ONLY: TPIINV
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, DTH, DDEN, WWNMEANP, &
                           WWNMEANPTAIL, FTE, FTF, SSTXFTF, SSTXFTWN,&
                           SSTXFTFTAIL, SSWELLF
@@ -356,7 +356,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: GRAV,nu_air,KAPPA,TPI,FWTABLE,SIZEFWTABLE, &
+      USE CONSTANTS, ONLY: GRAV,nu_air,KAPPA,TPI,FWTABLE,SIZEFWTABLE, &
                            DELAB,ABMIN
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, XFR, DDEN, SIG, SIG2, TH,   &
                           ESIN, ECOS, EC2, ZZWND, AALPHA, BBETA, ZZALP,&
@@ -720,7 +720,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: TPIINV, RADE, GRAV
+      USE CONSTANTS, ONLY: TPIINV, RADE, GRAV
       USE W3ODATMD,  ONLY: NDSE
       USE W3SERVMD,  ONLY: EXTCDE
       USE W3DISPMD,  ONLY: WAVNU2
@@ -986,7 +986,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: KAPPA, GRAV
+      USE CONSTANTS, ONLY: KAPPA, GRAV
       USE W3GDATMD, ONLY: ZZWND, AALPHA, ZZ0MAX
       IMPLICIT NONE
       INTEGER, PARAMETER      :: NITER=10
@@ -1096,7 +1096,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: KAPPA, GRAV
+      USE CONSTANTS, ONLY: KAPPA, GRAV
       USE W3GDATMD, ONLY: AALPHA, BBETA, ZZALP, XFR, FACHFE, ZZ0MAX
 !
       IMPLICIT NONE
@@ -1232,7 +1232,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: KAPPA, GRAV
+      USE CONSTANTS, ONLY: KAPPA, GRAV
       USE W3GDATMD, ONLY: AALPHA, BBETA, ZZALP, XFR, FACHFE,  &
                           TTAUWSHELTER, ZZ0MAX
       USE W3ODATMD, ONLY: NDSE
@@ -1444,7 +1444,7 @@
 !
 ! 10. Source code :
 !-----------------------------------------------------------------------------!
-      USE W3CONSTANTS, ONLY: GRAV, KAPPA
+      USE CONSTANTS, ONLY: GRAV, KAPPA
       USE W3GDATMD,  ONLY: ZZWND, AALPHA
       IMPLICIT NONE
       REAL, intent(in) :: WINDSPEED,TAUW
@@ -1552,7 +1552,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS,ONLY: GRAV, DAIR, DWAT, PI, TPI, RADE, WW3DEBUG_NODE
+      USE CONSTANTS,ONLY: GRAV, DAIR, DWAT, PI, TPI, RADE, WW3DEBUG_NODE
       USE W3GDATMD, ONLY: NSPEC, NTH, NK, SSDSBR, DDEN,              &
                           SSDSC, EC2, ES2, ESC,                      &
                           SIG, SSDSP, ECOS, ESIN, DTH, DSIP,         &

@@ -145,7 +145,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3PARTMD, ONLY: W3PART
 !
@@ -360,7 +360,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3SERVMD, ONLY: EXTCDE
 !
       USE W3GDATMD, ONLY: FILEXT, NSEA, XGRD, YGRD, MAPSF, FLAGLL

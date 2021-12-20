@@ -217,7 +217,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD
       USE W3ADATMD, ONLY: MPI_COMM_WAVE
       USE W3ODATMD

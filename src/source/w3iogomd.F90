@@ -191,7 +191,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD, ONLY: E3DF, P2MSF, US3DF, USSPF, STEXU, STEYU, STEDU
       USE W3ODATMD, ONLY: NOGRP, NGRPP
 !
@@ -331,7 +331,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD, ONLY: US3DF, USSPF
       USE W3ODATMD, ONLY: NOGRP, NGRPP, NOGE, IDOUT
       USE W3SERVMD, ONLY: NEXTLN, STRSPLIT, STR_TO_UPPER
@@ -769,7 +769,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3ODATMD, ONLY: NOGRP, NGRPP, NOGE, IDOUT
       USE W3SERVMD, ONLY: STRSPLIT, STR_TO_UPPER
       USE W3GDATMD, ONLY: US3DF, USSPF
@@ -1169,7 +1169,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD
       USE W3WDATMD, ONLY: UST, FPIS
 #ifdef CESMCOUPLED
@@ -2381,7 +2381,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-     USE W3CONSTANTS
+     USE CONSTANTS
      USE W3GDATMD
 !/
       USE W3WDATMD, ONLY: W3SETW, W3DIMW
@@ -3966,7 +3966,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: TPIINV, GRAV, TPI
+      USE CONSTANTS, ONLY: TPIINV, GRAV, TPI
       USE W3GDATMD,  ONLY: DDEN, DSII, XFR, SIG, NK, NTH, NSEAl,    &
                            ECOS, ESIN, US3DF, USSPF, USSP_WN
       USE W3ADATMD,  ONLY: CG, WN, DW

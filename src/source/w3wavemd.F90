@@ -349,7 +349,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
 !/
       USE W3GDATMD
       USE W3WDATMD
@@ -1936,7 +1936,7 @@
                           NSPLOC, NRQSG2, IRQSG2, SSTORE
       USE W3ODATMD, ONLY: NDST
       USE W3ODATMD, ONLY: IAPROC, NAPROC
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3PARALL, only: INIT_GET_ISEA
 !/
       IMPLICIT NONE

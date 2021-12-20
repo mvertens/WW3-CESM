@@ -272,7 +272,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: TPI
+      USE CONSTANTS, ONLY: TPI
       USE W3ODATMD, ONLY: NDSE
       USE W3SERVMD, ONLY: EXTCDE
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, MAPWN, IC4PARS, DDEN, &
