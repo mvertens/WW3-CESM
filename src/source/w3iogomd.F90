@@ -2417,7 +2417,7 @@
       USE W3SERVMD, ONLY: EXTCDE
       USE W3ODATMD, only : IAPROC
 #ifdef CESMCOUPLED
-      USE wav_cesm_mod, only : casename, inst_suffix    !CMB naming from cesm restarts
+      USE wav_cesm_mod, only : cesm_hist_filename, handle_err
       USE NETCDF
 #endif
 !
@@ -2450,12 +2450,11 @@
       REAL,    ALLOCATABLE    :: AUX2D1(:,:),AUX2D2(:,:),AUX2D3(:,:),AUX3DE(:,:,:)
       REAL,    ALLOCATABLE    :: AUX3DEF(:,:,:)
       LOGICAL                 :: WAUX1, WAUX2, WAUX3, WAUXE, WAUXEF
-      INTEGER                 :: YY,MM,DD,HH,MN,SS,TOTSEC
       INTEGER                 :: VARID1,VARID2,VARID3,VARIDE,NCID,NCLOOP
       CHARACTER(LEN=16)       :: FLDSTR1,FLDSTR2,FLDSTR3,FLDSTRE
       CHARACTER(LEN=16)       :: UNITSTR1,UNITSTR2,UNITSTR3,UNITSTRE
       CHARACTER(LEN=128)      :: LNSTR1,LNSTR2,LNSTR3,LNSTRE
-      INTEGER                 :: DIMID(4), EF_LEN
+      INTEGER                 :: DIMID(4)
       CHARACTER(LEN=256)      :: FNAME
       LOGICAL                 :: EXISTS
 #endif
@@ -2591,46 +2590,8 @@
 #ifdef CESMCOUPLED
       ALLOCATE ( AUX2D1(NX,NY),AUX2D2(NX,NY),AUX2D3(NX,NY),AUX3DE(NX,NY,0:NOSWLL) )
       ALLOCATE ( AUX3DEF(NX,NY,E3DF(2,1):E3DF(3,1)) )
-      YY =  TIME(1)/10000
-      MM = (TIME(1)-YY*10000)/100
-      DD = (TIME(1)-YY*10000-MM*100)
-      HH = TIME(2)/10000
-      MN = (TIME(2)-HH*10000)/100
-      SS = (TIME(2)-HH*10000-MN*100)
-      TOTSEC = HH*3600+MN*60+SS
-      EF_LEN=E3DF(3,1)-E3DF(2,1)+1
-      if (len_trim(inst_suffix) > 0) then
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
-              trim(casename)//'.ww3'//trim(inst_suffix)//'.hi.',YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
-      else
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
-              trim(casename)//'.ww3.hi.',YY,'-',MM,'-',DD,'-',TOTSEC,'.nc'
-      ENDIF
-      ! write(*, *) 'w3iogomd: writing history ', FNAME
-      INQUIRE(FILE=TRIM(FNAME),EXIST=EXISTS)
-      IF (.NOT.EXISTS) THEN
-         IERR = NF90_CREATE(TRIM(FNAME),NF90_CLOBBER,NCID)
-         CALL HANDLE_ERR(IERR,'CREATE')
-         IERR = NF90_DEF_DIM(NCID,'NX',NX,dimid(1))
-         CALL HANDLE_ERR(IERR,'DEF_DIMID1')
-         IERR = NF90_DEF_DIM(NCID,'NY',NY,dimid(2))
-         CALL HANDLE_ERR(IERR,'DEF_DIMID2')
-         IERR = NF90_DEF_DIM(NCID,'NOSWLL',NOSWLL+1,dimid(3))
-         CALL HANDLE_ERR(IERR,'DEF_DIMID3')
-         IERR = NF90_DEF_DIM(NCID,'FREQ', EF_LEN,dimid(4)) !EF_LEN=25
-         CALL HANDLE_ERR(IERR,'DEF_DIMID4')
-      ELSE
-         IERR = NF90_OPEN(TRIM(FNAME),NF90_WRITE,NCID)
-         CALL HANDLE_ERR(IERR,'OPEN')
-         IERR = NF90_INQ_DIMID(NCID,'NX',dimid(1))
-         CALL HANDLE_ERR(IERR,'INQ_DIMID1')
-         IERR = NF90_INQ_DIMID(NCID,'NY',dimid(2))
-         CALL HANDLE_ERR(IERR,'INQ_DIMID2')
-         IERR = NF90_INQ_DIMID(NCID,'NOSWLL',dimid(3))
-         CALL HANDLE_ERR(IERR,'INQ_DIMID3')
-         IERR = NF90_INQ_DIMID(NCID,'FREQ',dimid(4)) !EF_LEN=25
-         CALL HANDLE_ERR(IERR,'INQ_DIMID4')
-      ENDIF
+
+      call cesm_hist_filename(nx, ny, noswll, time, e3df, ncid, dimid)
 #endif
 
 ! Initialization ---------------------------------------------- *
@@ -2800,8 +2761,7 @@
 ! Actual output  ---------------------------------------------- *
 !
 #ifdef CESMCOUPLED
-      ! 1st loop step  define netcdf variables and
-      ! attributes
+      ! 1st loop step  define netcdf variables and attributes
       ! 2nd loop step, write variables
       NC_LOOP: DO NCLOOP = 1,2
         IF (NCLOOP == 1) THEN
@@ -4369,24 +4329,6 @@
 !/
       END SUBROUTINE CALC_WBT
 !/ ------------------------------------------------------------------- /
-
-#ifdef CESMCOUPLED
-      SUBROUTINE HANDLE_ERR(IERR,STRING)
-!/ Begin  HANDLE_ERR ----------------------------------------------------- /
-      USE W3ODATMD, ONLY: NDSE
-      USE W3SERVMD, ONLY: EXTCDE
-      USE NETCDF
-      IMPLICIT NONE
-      INTEGER         ,INTENT(IN) :: IERR
-      CHARACTER(LEN=*),INTENT(IN) :: STRING
-
-      IF (IERR /= NF90_NOERR) then
-         WRITE(NDSE,*) "*** WAVEWATCH III netCDF error: ",trim(string),':',trim(nf90_strerror(IERR))
-         CALL EXTCDE ( 49 )
-      ENDIF
-!/ End of HANDLE_ERR ----------------------------------------------------- /
-      END SUBROUTINE HANDLE_ERR
-#endif
 !/
 !/ End of module W3IOGOMD -------------------------------------------- /
 !/

@@ -35,6 +35,12 @@ module wav_shr_methods
   private :: timeInit
   private :: field_getfldptr
 
+  ! used by both CESM and UFS
+  ! runtype is used by W3SRCE (values are startup, branch, continue)
+  logical, public           :: root_task
+  integer, public           :: stdout
+  character(len=cs), public :: runtype
+
   interface ymd2date
      module procedure ymd2date_int
      module procedure ymd2date_long
@@ -64,9 +70,9 @@ module wav_shr_methods
        optIfdays0        = "ifdays0"
 
   ! Module data
-  integer, parameter :: SecPerDay = 86400 ! Seconds per day
-  integer, parameter :: memdebug_level=1
-  character(len=1024)                   :: msgString
+  integer, parameter          :: SecPerDay = 86400 ! Seconds per day
+  integer, parameter          :: memdebug_level=1
+  character(len=ESMF_MAXSTR)  :: msgString
   character(len=*), parameter :: u_FILE_u = &
        __FILE__
 

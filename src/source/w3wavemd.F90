@@ -375,10 +375,10 @@
       USE W3SERVMD
       USE W3TIMEMD
       USE W3PARALL, ONLY : INIT_GET_ISEA
- 
+
 #ifdef CESMCOUPLED
       ! flags for restart and history writes
-      use wav_cesm_mod, only : RSTWR, HISTWR  
+      use wav_cesm_mod, only : RSTWR, HISTWR
 #endif
 !
       IMPLICIT NONE
@@ -438,13 +438,13 @@
       CHARACTER(LEN=23)       :: IDTIME
       INTEGER eIOBP
       INTEGER ITH_F
- 
+
 !
 !/
- 
+
 !/ ------------------------------------------------------------------- /
 ! 0.  Initializations
- 
+
 !
 ! 0.a Set pointers to data structure
 !
@@ -640,28 +640,28 @@
 !        CALL FLUSH(740+IAPROC)
 !        STOP
 !      ENDIF
- 
- 
+
+
 !
 ! 2.a Pre-calculate table for IC3 ------------------------------------ /
- 
+
 ! 2.b Update group velocity and wavenumber from ice parameters ------- /
 !     from W3SIC3MD module. ------------------------------------------ /
 !     Note: "IF FLFRST" can be added for efficiency, but testing req'd
- 
+
          JSEA=1 ! no switch (intentional)
- 
- 
+
+
            ISEA   = IAPROC + (JSEA-1)*NAPROC
- 
+
 ! 2.b.1 Using Cheng method: requires stationary/uniform rheology.
 !       However, ice thickness may be input by either method
- 
- 
+
+
 ! 2.b.2 If not using Cheng method: require FLIC1 to FLIC4 (not strictly
 !       necesssary, but makes code simpler)
- 
- 
+
+
 !
         IF ( TOFRST(1) .GT. 0 ) THEN
             DTTST  = DSEC21 ( TEND , TOFRST )
@@ -685,34 +685,34 @@
           ELSE
             IT0    = 1
           END IF
- 
- 
+
+
 !
 ! ==================================================================== /
 !
 ! 3.  Loop over time steps
 !
         DTRES  = 0.
- 
+
 !
         DO IT=IT0, NT
 ! copy old values
 !
- 
+
           ITIME  = ITIME + 1
           DTG    = REAL(NINT(DTGA+DTRES+0.0001))
           DTRES  = DTRES + DTGA - DTG
           IF ( ABS(DTRES) .LT. 0.001 ) DTRES  = 0.
           CALL TICK21 ( TIME , DTG )
 !
- 
+
           IF ( TSTAMP .AND. SCREEN.NE.NDSO .AND. IAPROC.EQ.NAPOUT ) THEN
               CALL WWTIME ( STTIME )
               CALL STME21 ( TIME , IDTIME )
               WRITE (SCREEN,950) IDTIME, STTIME
             END IF
- 
- 
+
+
 !
           VGX = 0.
           VGY = 0.
@@ -729,11 +729,11 @@
 ! 3.1 Interpolate winds and currents.
 !     (Initialize wave fields with winds)
 !
- 
+
           IF ( FLCUR  ) THEN
- 
+
             CALL W3UCUR ( FLFRST )
- 
+
             IF (GTYPE .NE. UNGTYPE) THEN
               IF( RGLGRD ) THEN
               CALL W3DZXY(CX(1:UBOUND(CX,1)),'m/s',DCXDX, DCXDY) !CX GRADIENT
@@ -746,7 +746,7 @@
               UGDTUPDATE=.TRUE.
               CFLXYMAX = 0.
             END IF
- 
+
 !
             ELSE IF ( FLFRST ) THEN
               UGDTUPDATE=.TRUE.
@@ -755,7 +755,7 @@
               CY = 0.
               END IF ! FLCUR
 !
- 
+
           IF ( FLWIND ) THEN
             IF ( FLFRST ) ASF = 1.
             CALL W3UWND ( FLFRST, VGX, VGY )
@@ -765,7 +765,7 @@
             UST    = 0.05
             USTDIR = 0.05
           END IF
- 
+
 !      DO JSEA = 1, NSEAL
 !        DO IS = 1, NSPEC
 !          IF (VA(IS, JSEA) .LT. 0.) THEN
@@ -779,14 +779,14 @@
 !        CALL FLUSH(740+IAPROC)
 !        STOP
 !      ENDIF
- 
- 
+
+
 !
           IF ( FLIWND .AND. LOCAL ) CALL W3UINI ( VA )
 !
 ! 3.2 Update boundary conditions if boundary flag is true (FLBPI)
 !
- 
+
           IF ( FLBPI .AND. LOCAL ) THEN
 !
               DO
@@ -798,7 +798,7 @@
                     IF (READBC.AND.IDACT(1:1).EQ.' ') IDACT(1:1) = 'X'
                 END IF
                 FLACT  = READBC .OR. FLACT
- 
+
                 IF ( READBC ) THEN
                   CALL W3IOBC ( 'READ', NDS(9), TBPI0, TBPIN,       &
                                 ITEST, IMOD )
@@ -810,13 +810,13 @@
                 IF ( ITEST .GT. 0 ) IDACT(1:1) = ' '
                 IF ( .NOT. (READBC.AND.FLBPI) ) EXIT
                 END DO
- 
+
           END IF
- 
- 
- 
- 
- 
+
+
+
+
+
 !
 ! 3.3.1 Update ice coverage (if new ice map).
 !     Need to be run on output nodes too, to update MAPSTx
@@ -841,7 +841,7 @@
                   FLMAP  = .TRUE.
               END IF
           END IF
- 
+
 !
 ! 3.3.2 Update ice thickness
 !
@@ -866,8 +866,8 @@
                 END IF
 !
             END IF
- 
- 
+
+
 !
 ! 3.3.3 Update ice floe diameter
 !
@@ -911,9 +911,9 @@
                 END IF
 !
               IF ( IDACT(5:5).NE.' ' ) THEN
- 
+
                   CALL W3ULEV ( VA, VA )
- 
+
                   UGDTUPDATE=.TRUE.
                   CFLXYMAX = 0.
                   DTL0   = 0.
@@ -923,8 +923,8 @@
                         .OR. FLCK .OR. FSFREQSHIFT
               END IF
           END IF
- 
- 
+
+
 !
 ! 3.5 Update maps and derivatives.
 !
@@ -947,8 +947,8 @@
               END IF
               FLDDIR = .FALSE.
           END IF
- 
- 
+
+
 !
 !         Calculate PHASE SPEED GRADIENT.
           DCDX = 0.
@@ -957,7 +957,7 @@
           FLIWND = .FALSE.
           FLFRST = .FALSE.
 !
- 
+
 !
         IF ( FLSOU .and. LPDLIB) THEN
 !
@@ -965,7 +965,7 @@
           REFLEC(:)=0.
           REFLED(:)=0
           PSIC=0.
- 
+
           DO JSEA=1, NSEAL
             CALL INIT_GET_ISEA(ISEA, JSEA)
             IX     = MAPSF(ISEA,1)
@@ -985,8 +985,8 @@
             END IF
           END DO ! JSEA
         END IF ! PDLIB
- 
- 
+
+
           IF ( FLZERO ) THEN
               GOTO 400
             END IF
@@ -1020,11 +1020,11 @@
 !
                     END IF
                 END IF
- 
+
 !
- 
+
 !
- 
+
 !
 ! 3.6 Perform Propagation = = = = = = = = = = = = = = = = = = = = = = =
 ! 3.6.1 Preparations
@@ -1044,11 +1044,11 @@
                   CALL INIT_GET_ISEA(ISEA, JSEA)
                   IX     = MAPSF(ISEA,1)
                   IY     = MAPSF(ISEA,2)
- 
+
                   IF ( GTYPE .EQ. UNGTYPE ) THEN
                     IF (IOBP(ISEA) .NE. 1) CYCLE
                   ENDIF
- 
+
                   IF ( MAPSTA(IY,IX) .EQ. 1 ) THEN
                            DEPTH  = MAX ( DMIN , DW(ISEA) )
                            IF (LPDLIB) THEN
@@ -1069,8 +1069,8 @@
 !
               END DO
           END IF
- 
- 
+
+
 !
 ! 3.6.3 Longitude-latitude
 !       (time step correction in routine)
@@ -1092,7 +1092,7 @@
          CALL MPI_STARTALL (NRQSG1, IRQSG1(1,2), IERR_MPI)
        END IF
 !
- 
+
             IF ( FLOMP ) ALLOCATE ( FIELD(1-NY:NY*(NX+2)) )
 !
             DO ISPEC=1, NSPEC
@@ -1121,13 +1121,13 @@
                            IERR_MPI)
          DEALLOCATE ( STATCO )
          END IF
- 
- 
- 
- 
+
+
+
+
               IF ( FLOMP ) DEALLOCATE ( FIELD )
- 
- 
+
+
 !Li   Initialise IK IX IY in case ARC option is not used to avoid warnings.
               IK=1
               IX=1
@@ -1144,7 +1144,7 @@
          CALL MPI_BARRIER (MPI_COMM_WAVE,IERR_MPI)
          ENDIF
 !
- 
+
           IF( ARCTIC ) THEN
             ISPEC = MOD( IX-1, NAPROC )
              JSEA = 1 + (IX - ISPEC - 1)/NAPROC
@@ -1154,7 +1154,7 @@
 !
           END IF
         END IF
- 
+
 !
 ! 3.6.4 Intra-spectral part 2
 !
@@ -1162,16 +1162,16 @@
               DO ITLOC=ITLOCH+1, NTLOC
 !
                 DO JSEA = 1, NSEAL
- 
+
                   CALL INIT_GET_ISEA(ISEA, JSEA)
                   IX     = MAPSF(ISEA,1)
                   IY     = MAPSF(ISEA,2)
                   DEPTH  = MAX ( DMIN , DW(ISEA) )
- 
+
                   IF ( GTYPE .EQ. UNGTYPE ) THEN
                     IF (IOBP(ISEA) .NE. 1) CYCLE
                   ENDIF
- 
+
                   IF ( MAPSTA(IY,IX) .EQ. 1 ) THEN
                            IF (LPDLIB) THEN
                              IXrel = JSEA
@@ -1195,7 +1195,7 @@
           UGDTUPDATE = .FALSE.
 !
 ! 3.6 End propapgation  = = = = = = = = = = = = = = = = = = = = = = = =
- 
+
 ! 3.7 Calculate and integrate source terms.
 !
   370     CONTINUE
@@ -1214,8 +1214,8 @@
                 DELX=1.
                 DELY=1.
 !
- 
- 
+
+
                 IF ( MAPSTA(IY,IX) .EQ. 1 .AND. FLAGST(ISEA)) THEN
                      TMP1   = WHITECAP(JSEA,1:4)
                      TMP2   = BEDFORMS(JSEA,1:3)
@@ -1252,9 +1252,9 @@
 !                    VA(:,JSEA)  = 0.
                 END IF
               END DO
- 
+
 !
- 
+
 !
 ! This barrier is from older code versions. It has been removed in 3.11
 ! to optimize IO2/3 settings. May be needed on some systems still
@@ -1292,7 +1292,7 @@
           END IF
 !
         END DO
- 
+
 !
 !     End of loop over time steps
 ! ==================================================================== /
@@ -1353,7 +1353,7 @@
           ! dsec21 computes the difference between time1, time2 in sec
           ! pretty sure tonext always equal to time on the hour
           ! so this is getting called every hour
-          ! seems like it only needs to be done when histwr=T though 
+          ! seems like it only needs to be done when histwr=T though
           ! so am chaning
           IF (  histwr .and.  &
                (FLOUT(1) .OR.  FLOUT(7)) ) THEN
@@ -1368,7 +1368,7 @@
 #ifdef CESMCOUPLED
                write(*,*) 'CMB histwr mpi_startall', histwr, NRQGO, IERR_MPI
 #endif
- 
+
                FLGMPI(0) = .TRUE.
                NRQMAX    = MAX ( NRQMAX , NRQGO )
              END IF
@@ -1389,7 +1389,7 @@
            ELSE
            END IF
           END IF
- 
+
 !
           IF ( FLOUT(2) .AND. NRQPO.NE.0 ) THEN
                 IF ( DSEC21(TIME,TONEXT(:,2)).EQ.0. ) THEN
@@ -1432,11 +1432,11 @@
 !
           IF ( NRQMAX .NE. 0 ) ALLOCATE                         &
                                  ( STATIO(MPI_STATUS_SIZE,NRQMAX) )
- 
- 
+
+
 !
 ! 4.c Reset next output time
- 
+
 !
           TOFRST(1) = -1
           TOFRST(2) =  0
@@ -1452,25 +1452,30 @@
                   IF ( DTTST .EQ. 0. ) THEN
 #ifdef CESMCOUPLED
                       IF ( (( J .EQ. 1 ) .OR. ( J .EQ. 7 )) .AND. histwr) THEN
-#else
-                      IF ( ( J .EQ. 1 ) .OR. ( J .EQ. 7 ) ) THEN
-#endif
                           CALL MPI_WAITALL( NRQGO, IRQGO, STATIO, IERR_MPI )
                           FLGMPI(0) = .FALSE.
-#ifdef CESMCOUPLED
                           write(*,*) 'w3wavemd: hist flag 1', j, histwr, time, IERR_MPI
-#endif
-                          IF ( IAPROC .EQ. NAPFLD ) THEN 
+                          IF ( IAPROC .EQ. NAPFLD ) THEN
                               IF ( FLGMPI(1) ) CALL MPI_WAITALL  &
                                  ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
                               FLGMPI(1) = .FALSE.
-#ifdef CESMCOUPLED
                               write(*,*) 'w3wavemd: hist flag 2', j, histwr, time, IERR_MPI
-#endif
+                              IF ( J .EQ. 1 ) CALL W3IOGO &
+                                 ( 'WRITE', NDS(7), ITEST, IMOD )
+                          END IF
+#else
+                      IF ( ( J .EQ. 1 ) .OR. ( J .EQ. 7 ) ) THEN
+                          CALL MPI_WAITALL( NRQGO, IRQGO, STATIO, IERR_MPI )
+                          FLGMPI(0) = .FALSE.
+                          IF ( IAPROC .EQ. NAPFLD ) THEN
+                              IF ( FLGMPI(1) ) CALL MPI_WAITALL  &
+                                 ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
+                              FLGMPI(1) = .FALSE.
                               IF ( J .EQ. 1 ) CALL W3IOGO             &  !for master only????
                                  ( 'WRITE', NDS(7), ITEST, IMOD )
                           END IF
- 
+#endif
+
                         ELSE IF ( J .EQ. 2 ) THEN
 !
 !   Point output
@@ -1489,7 +1494,7 @@
 !
                           CALL W3IOTR ( NDS(11), NDS(12), VA, IMOD )
 #ifdef CESMCOUPLED
-                        ! add restart flag  
+                        ! add restart flag
                         ! CMB why not waitall? seems to be done on w3iors
                         ELSE IF ( J .EQ. 4 .AND. RSTWR ) THEN
                           CALL W3IORS ('HOT', NDS(6), XXX, ITEST, IMOD )
@@ -1536,12 +1541,12 @@
                 END IF
 !
             END DO
- 
+
 !
             IF ( FLGMPI(0) ) CALL MPI_WAITALL                    &
                              ( NRQGO, IRQGO , STATIO, IERR_MPI )
 #ifdef CESMCOUPLED
-            IF ( FLGMPI(1) .and. ( IAPROC .EQ. NAPFLD ) ) CALL MPI_WAITALL   & 
+            IF ( FLGMPI(1) .and. ( IAPROC .EQ. NAPFLD ) ) CALL MPI_WAITALL   &
                              ( NRQGO2, IRQGO2 , STATIO, IERR_MPI )   !CMB added
 #endif
             IF ( FLGMPI(2) ) CALL MPI_WAITALL                    &
@@ -1558,11 +1563,11 @@
 !!/MPI            IF (FLDRY) CALL MPI_BARRIER (MPI_COMM_WAVE,IERR_MPI)
 !
           END IF !CMB IF ( DTTST.LE.0. .AND. DTTST1.NE.0. .AND. FLAG_O )
- 
- 
+
+
 !
 ! 5.  Update log file ------------------------------------------------ /
- 
+
 !      IF (MINVAL(VA) .LT. 0.) THEN
 !        WRITE(740+IAPROC,*) 'TEST W3WAVE 13', SUM(VA), MINVAL(VA), MAXVAL(VA)
 !        CALL FLUSH(740+IAPROC)
@@ -1605,14 +1610,14 @@
         DTTST  = DSEC21 ( TIME, TEND )
         IF ( DTTST .EQ. 0. ) EXIT
       END DO
- 
+
 !
- 
+
       IF ( TSTAMP .AND. SCREEN.NE.NDSO .AND. IAPROC.EQ.NAPOUT ) THEN
          CALL WWTIME ( STTIME )
          WRITE (SCREEN,951) STTIME
       END IF
- 
+
       IF ( IAPROC .EQ. NAPLOG ) WRITE (NDSO,902)
 !
       IF ( .NOT. FLOMP ) DEALLOCATE ( FIELD )

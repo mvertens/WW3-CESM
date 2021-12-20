@@ -513,7 +513,7 @@ contains
   end subroutine import_fields
 
   !====================================================================================
-  subroutine export_fields (gcomp, runtype, rc)
+  subroutine export_fields (gcomp, rc)
 
     !---------------------------------------------------------------------------
     ! Create the export state
@@ -532,7 +532,6 @@ contains
 
     ! input/output/variables
     type(ESMF_GridComp)            :: gcomp
-    character(len=*) , intent(in)  :: runtype
     integer          , intent(out) :: rc
 
     ! Local variables
@@ -666,7 +665,7 @@ contains
     if (state_fldchk(exportState, 'Sw_z0')) then
        call state_getfldptr(exportState, 'Sw_z0', fldptr1d=z0rlen, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-       call CalcRoughl(z0rlen, runtype)
+       call CalcRoughl(z0rlen)
     endif
 
     !TODO: what is difference between uscurr/vscurr and sw_ustokes,sw_vstokes?
@@ -1208,7 +1207,7 @@ contains
   end subroutine CalcCharnk
 
   !===============================================================================
-  subroutine CalcRoughl ( wrln, runtype )
+  subroutine CalcRoughl ( wrln)
 
     ! Calculate 2D wave roughness length for export
 
@@ -1222,10 +1221,10 @@ contains
 #ifdef W3_ST4
     use w3src4md,   only : w3spr4
 #endif
+    use wav_shr_methods, only : runtype
 
     ! input/output variables
     real(r8)         , pointer    :: wrln(:) ! 2D roughness length export field ponter
-    character(len=*) , intent(in) :: runtype
 
     ! local variables
     integer       :: isea, jsea, ix, iy

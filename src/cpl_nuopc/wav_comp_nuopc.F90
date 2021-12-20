@@ -141,9 +141,7 @@ module wav_comp_nuopc
   use wav_import_export     , only : advertise_fields, realize_fields
   use wav_import_export     , only : state_getfldptr, state_fldchk
   use wav_shr_methods       , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit, ymd2date
-#ifdef CESMCOUPLED
-  use wav_cesm_mod          , only : runtype
-#endif
+  use wav_shr_methods       , only : root_task, stdout, runtype
 
   implicit none
   private ! except
@@ -170,15 +168,10 @@ module wav_comp_nuopc
   integer                 :: flds_scalar_index_ny = 0
   logical                 :: profile_memory = .false.
 
-  logical                 :: root_task
   integer     , parameter :: debug = 1
   character(*), parameter :: modName =  "(wav_comp_nuopc)"
   character(*), parameter :: u_FILE_u = &
        __FILE__
-
-#ifndef CESMCOUPLED
-  character(len=16) :: runtype
-#endif
 
 !===============================================================================
 contains
@@ -753,7 +746,7 @@ contains
     if (state_fldchk(exportState, 'Sw_z0')) then
        call state_getfldptr(exportState, 'Sw_z0', fldptr1d=z0rlen, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-       call CalcRoughl(z0rlen, runtype)
+       call CalcRoughl(z0rlen)
     endif
 
     if (wav_coupling_to_cice) then
@@ -1002,7 +995,7 @@ contains
     ! Create export state
     !------------
 
-    call export_fields(gcomp, runtype, rc)
+    call export_fields(gcomp, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !------------

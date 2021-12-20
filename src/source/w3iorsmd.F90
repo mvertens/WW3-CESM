@@ -244,9 +244,9 @@
       USE W3PARALL, ONLY: INIT_GET_ISEA, INIT_GET_JSEA_ISPROC
       USE W3GDATMD, ONLY: NK, NTH
 #ifdef CESMCOUPLED
-      USE W3ADATMD, ONLY: MPI_COMM_WCMP, LAMULT
-      use shr_sys_mod , only : shr_sys_abort
-      use wav_cesm_mod, only : casename, initfile, runtype, inst_suffix
+      USE W3ADATMD, ONLY: LAMULT
+      use wav_cesm_mod   , only : cesm_rest_filename
+      use wav_shr_methods, only : runtype
 #endif
 !!!!!/PDLIB    USE PDLIB_FIELD_VEC!, only : UNST_PDLIB_READ_FROM_FILE, UNST_PDLIB_WRITE_TO_FILE
 !
@@ -286,12 +286,6 @@
       CHARACTER(LEN=256)      :: FNAME
       CHARACTER(LEN=26)       :: IDTST
       CHARACTER(LEN=30)       :: TNAME
-#ifdef CESMCOUPLED
-      ! needed for restart file name
-      INTEGER                 :: YY,MM,DD,HH,MN,SS,TOTSEC
-      CHARACTER(LEN=256)      :: ERROR_MSG
-      LOGICAL                 :: EXISTS ! if the file exists or not
-#endif
 !/
 !/ ------------------------------------------------------------------- /
 !/
@@ -352,9 +346,6 @@
 !
 ! open file ---------------------------------------------------------- *
 
-#ifdef CESMCOUPLED
-      IFILE  = IFILE + 1
-
       IF(NDST.EQ.NDSR)THEN
          IF ( IAPROC .EQ. NAPERR )                                    &
             WRITE(NDSE,'(A,I8)')'UNIT NUMBERS OF RESTART FILE AND '&
@@ -362,49 +353,20 @@
          CALL EXTCDE ( 15 )
       ENDIF
 
-      YY =  TIME(1)/10000
-      MM = (TIME(1)-YY*10000)/100
-      DD = (TIME(1)-YY*10000-MM*100)
-      HH = TIME(2)/10000
-      MN = (TIME(2)-HH*10000)/100
-      SS = (TIME(2)-HH*10000-MN*100)
-      TOTSEC = HH*3600+MN*60+SS
-
-      ! Open and read/write file
-      if (len_trim(inst_suffix) > 0) then
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5)') &
-              trim(CASENAME)//&
-              &'.ww3'//trim(inst_suffix)//'.r.',YY,'-',MM,'-',DD,'-',TOTSEC
-      else
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5)') &
-              trim(CASENAME)//'.ww3.r.',YY,'-',MM,'-',DD,'-',TOTSEC
-      ENDIF
+#ifdef CESMCOUPLED
+      call cesm_rest_filename(WRITE, TIME, FNAME)
+      IFILE  = IFILE + 1
 
       IF ( WRITE ) THEN
           IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )        &
           OPEN (NDSR,FILE=FNAME,FORM='UNFORMATTED',       &
                 ACCESS='STREAM',ERR=800,IOSTAT=IERR)
-          IF ( IAPROC .EQ. NAPERR ) then
-             WRITE (NDSE,*) ' writing restart file ',trim(FNAME)
-          end IF
       ELSE  ! READ
-         if (runtype /= 'continue') FNAME = INITFILE
-         inquire( file=FNAME, exist=exists)
-         if (.not. exists ) then
-            error_msg = "required initial/restart file " // trim(FNAME) // "does not exist"
-            call shr_sys_abort(error_msg)
-         else
-            if ( IAPROC .EQ. NAPERR ) then
-               WRITE (NDSE,'(a)') ' reading initial/restart file '//trim(FNAME)
-            end if
-         end if
          OPEN (NDSR, FILE=FNAME, FORM='UNFORMATTED',          &
                ACCESS='STREAM',ERR=800,IOSTAT=IERR,           &
                STATUS='OLD',ACTION='READ')
        END IF
-
 #else
-
       I      = LEN_TRIM(FILEXT)
       J      = LEN_TRIM(FNMPRE)
       IF ( IFILE.EQ.0 ) THEN
@@ -415,13 +377,6 @@
                WRITE (FNAME(8:10),'(I3.3)') IFILE
         END IF
       IFILE  = IFILE + 1
-
-      IF(NDST.EQ.NDSR)THEN
-         IF ( IAPROC .EQ. NAPERR )                                    &
-            WRITE(NDSE,'(A,I8)')'UNIT NUMBERS OF RESTART FILE AND '&
-            //'TEST OUTPUT ARE THE SAME : ',NDST
-         CALL EXTCDE ( 15 )
-      ENDIF
 
       IF ( WRITE ) THEN
           IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )                    &
@@ -504,6 +459,7 @@
               END IF
             ELSE
               READ (NDSR,POS=RPOS,ERR=802,IOSTAT=IERR) TTIME
+#ifdef CESMCOUPLED
               if (runtype == 'branch' .or. runtype == 'continue') then
                 IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
                     IF ( IAPROC .EQ. NAPERR )                           &
@@ -511,6 +467,13 @@
                     CALL EXTCDE ( 20 )
                   END IF
               end if
+#else
+              IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
+                  IF ( IAPROC .EQ. NAPERR )                           &
+                      WRITE (NDSE,906) TTIME, TIME
+                  CALL EXTCDE ( 20 )
+                END IF
+#endif
             END IF
 !
         END IF
