@@ -376,8 +376,8 @@
       USE W3TIMEMD
       USE W3PARALL, ONLY : INIT_GET_ISEA
  
-      ! QL, 150823, flag for restart 
 #ifdef CESMCOUPLED
+      ! flags for restart and history writes
       use wav_cesm_mod, only : RSTWR, HISTWR  
 #endif
 !
@@ -1365,7 +1365,9 @@
            IF (.NOT. LPDLIB .or. (GTYPE.ne.UNGTYPE)) THEN
              IF (NRQGO.NE.0 ) THEN
                CALL MPI_STARTALL ( NRQGO, IRQGO , IERR_MPI )
-              write(*,*) 'CMB histwr mpi_startall', histwr, NRQGO, IERR_MPI
+#ifdef CESMCOUPLED
+               write(*,*) 'CMB histwr mpi_startall', histwr, NRQGO, IERR_MPI
+#endif
  
                FLGMPI(0) = .TRUE.
                NRQMAX    = MAX ( NRQMAX , NRQGO )
@@ -1486,10 +1488,15 @@
 ! Track output
 !
                           CALL W3IOTR ( NDS(11), NDS(12), VA, IMOD )
-                        ! QL, 150823, add restart flag  
+#ifdef CESMCOUPLED
+                        ! add restart flag  
+                        ! CMB why not waitall? seems to be done on w3iors
                         ELSE IF ( J .EQ. 4 .AND. RSTWR ) THEN
-                           !CMB why not waitall? seems to be done on w3iors
                           CALL W3IORS ('HOT', NDS(6), XXX, ITEST, IMOD )
+#else
+                        ELSE IF ( J .EQ. 4 ) THEN
+                          CALL W3IORS ('HOT', NDS(6), XXX, ITEST, IMOD )
+#endif
                         ELSE IF ( J .EQ. 5 ) THEN
                           IF ( IAPROC .EQ. NAPBPT ) THEN
                               IF (NRQBP2.NE.0) CALL MPI_WAITALL  &

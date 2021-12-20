@@ -1948,8 +1948,8 @@
                  USSXH(JSEA) = ETUSSXH(JSEA)
                  USSYH(JSEA) = ETUSSYH(JSEA)
 
-                 ! HK this check is to divide by zeror error with gx17
-                 !    is there a better way to do this check?
+                 ! this check is to divide by zeror error with gx17
+                 ! is there a better way to do this check?
                  IF( SQRT(USSX(JSEA)**2 + USSY(JSEA)**2) .GT. 0) THEN
                     IF( SQRT(USSXH(JSEA)**2+USSYH(JSEA)**2) .GT. 0) THEN
 
