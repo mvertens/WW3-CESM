@@ -244,7 +244,7 @@
       USE W3PARALL, ONLY: INIT_GET_ISEA, INIT_GET_JSEA_ISPROC
       USE W3GDATMD, ONLY: NK, NTH
 #ifdef CESMCOUPLED
-      USE W3ADATMD, ONLY: LAMULT
+      USE W3ADATMD       , only : LAMULT
       use wav_cesm_mod   , only : cesm_rest_filename
       use wav_shr_methods, only : runtype
 #endif

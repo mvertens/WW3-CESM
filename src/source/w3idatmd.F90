@@ -70,15 +70,13 @@
 !      WLEV      R.A.  Public   Next water level field.
 !      ICEI      R.A.  Public   Ice concentrations.
 !      BERGI     R.A.  Public   Iceberg damping coefficient
-#ifdef CESMCOUPLED
-!      HML       R.A.  Public   Mixed layer depth
-#endif
 !      IINIT     Log.  Public   Flag for array initialization.
 !      FLLEV     Log.  Public   Flag for water level input.
 !      FLCUR     Log.  Public   Flag for current input.
 !      FLWIND    Log.  Public   Flag for wind input.
 !      FLICE     Log.  Public   Flag for ice input.
 #ifdef CESMCOUPLED
+!      HML       R.A.  Public   Mixed layer depth
 !      FLHML     Log.  Public   Flag for mixed layer depth input.
 #endif
 !      INFLAGS1  L.A.  Public   Array consolidating the above four
@@ -189,15 +187,13 @@
                                  BERGI(:,:), MUDT(:,:), MUDV(:,:),    &
                                  MUDD(:,:), ICEP1(:,:), ICEP2(:,:),   &
                                  ICEP3(:,:), ICEP4(:,:), ICEP5(:,:)
-#ifdef CESMCOUPLED
-      REAL, POINTER           :: HML(:,:)
-#endif
       LOGICAL, POINTER        :: IINIT
       LOGICAL, POINTER        :: INFLAGS1(:), INFLAGS2(:), FLAGSC(:)
       LOGICAL, POINTER        :: FLLEV, FLCUR, FLWIND, FLICE
       LOGICAL, POINTER        :: FLMTH, FLMVS, FLMDN
       LOGICAL, POINTER        :: FLIC1, FLIC2, FLIC3, FLIC4, FLIC5
 #ifdef CESMCOUPLED
+      REAL   , POINTER        :: HML(:,:)
       LOGICAL, POINTER        :: FLHML
 #endif
 !/

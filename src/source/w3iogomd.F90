@@ -2406,9 +2406,6 @@
                           TH1M, STH1M, TH2M, STH2M, HSIG, PHICE, TAUICE,&
                           STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD, HCMAXD,&
                           USSP
-#ifdef CESMCOUPLED
-      USE W3ADATMD, ONLY: LANGMT
-#endif
 !/
       USE W3ODATMD, ONLY: NOGRP, NGRPP, IDOUT, UNDEF, NDST, NDSE,     &
                           FLOGRD, IPASS => IPASS1, WRITE => WRITE1,   &
@@ -2416,10 +2413,6 @@
 !/
       USE W3SERVMD, ONLY: EXTCDE
       USE W3ODATMD, only : IAPROC
-#ifdef CESMCOUPLED
-      USE wav_cesm_mod, only : cesm_hist_filename, handle_err
-      USE NETCDF
-#endif
 !
       IMPLICIT NONE
 !/
@@ -2439,25 +2432,8 @@
       INTEGER, ALLOCATABLE    :: MAPTMP(:,:)
       REAL                    :: AUX1(NSEA), AUX2(NSEA),              &
                                  AUX3(NSEA), AUX4(NSEA)
-#ifdef CESMCOUPLED
-      REAL                    :: AUXE(NSEA,0:NOSWLL), &
-                                 AUXEF(NSEA,E3DF(2,1):E3DF(3,1))
-#endif
       CHARACTER(LEN=30)       :: IDTST, TNAME
       CHARACTER(LEN=10)       :: VERTST
-#ifdef CESMCOUPLED
-      ! cesm history files
-      REAL,    ALLOCATABLE    :: AUX2D1(:,:),AUX2D2(:,:),AUX2D3(:,:),AUX3DE(:,:,:)
-      REAL,    ALLOCATABLE    :: AUX3DEF(:,:,:)
-      LOGICAL                 :: WAUX1, WAUX2, WAUX3, WAUXE, WAUXEF
-      INTEGER                 :: VARID1,VARID2,VARID3,VARIDE,NCID,NCLOOP
-      CHARACTER(LEN=16)       :: FLDSTR1,FLDSTR2,FLDSTR3,FLDSTRE
-      CHARACTER(LEN=16)       :: UNITSTR1,UNITSTR2,UNITSTR3,UNITSTRE
-      CHARACTER(LEN=128)      :: LNSTR1,LNSTR2,LNSTR3,LNSTRE
-      INTEGER                 :: DIMID(4)
-      CHARACTER(LEN=256)      :: FNAME
-      LOGICAL                 :: EXISTS
-#endif
 !/
 !/ ------------------------------------------------------------------- /
 !/
@@ -2493,18 +2469,6 @@
             END IF
         END IF
 !
-#ifdef CESMCOUPLED
-   !CMB skip all the out_grd unformatted output since it is being replaced
-   !CMB with netcdf, though it is only partially done. netcdf works but is
-   !CMB bizarrely complex due to legacy code
-   !CMB I think there once were 7 different output files so each had
-   !CMB records of same dimensions only (ie "grid" or "frequency" records were separate)
-   !CMB This is not a problem in netcdf. I think Helen had mashed all the
-   !CMB unformatted output into a single unformatted file to start her process.
-   !CMB But then never finished really getting rid of the unformatted stuff
-   IF (.FALSE.) THEN
-#endif
-
 ! open file ---------------------------------------------------------- *
 ! ( IPASS = 1 )
 !
@@ -2557,7 +2521,7 @@
 !
             END IF
 !
-      END IF
+        END IF
 !
 ! TIME and flags ----------------------------------------------------- *
 !
@@ -2581,19 +2545,9 @@
           MAPST2 = (MAPTMP-MAPSTA) / 8
         END IF
       DEALLOCATE ( MAPTMP )
-#ifdef CESMCOUPLED
-   END IF  ! CMB conditional to eliminate the out_grd output
-#endif
 !
 ! Fields ---------------------------------------------- *
 !
-#ifdef CESMCOUPLED
-      ALLOCATE ( AUX2D1(NX,NY),AUX2D2(NX,NY),AUX2D3(NX,NY),AUX3DE(NX,NY,0:NOSWLL) )
-      ALLOCATE ( AUX3DEF(NX,NY,E3DF(2,1):E3DF(3,1)) )
-
-      call cesm_hist_filename(nx, ny, noswll, time, e3df, ncid, dimid)
-#endif
-
 ! Initialization ---------------------------------------------- *
 !
       IF ( WRITE ) THEN
@@ -2687,9 +2641,6 @@
                 IF ( FLOGRD( 6, 10) ) TAUICE(ISEA,:) = UNDEF
                 IF ( FLOGRD( 6, 11) ) PHICE(ISEA) = UNDEF
                 IF ( FLOGRD( 6, 12) ) USSP(ISEA,:) = UNDEF
-#ifdef CESMCOUPLED
-                IF ( FLOGRD( 6, 13) ) LANGMT(ISEA) = UNDEF
-#endif
 !
                 IF ( FLOGRD( 7, 1) ) THEN
                                      ABA   (ISEA) = UNDEF
@@ -2759,63 +2710,20 @@
         END IF
 !
 ! Actual output  ---------------------------------------------- *
-!
-#ifdef CESMCOUPLED
-      ! 1st loop step  define netcdf variables and attributes
-      ! 2nd loop step, write variables
-      NC_LOOP: DO NCLOOP = 1,2
-        IF (NCLOOP == 1) THEN
-          IERR = NF90_REDEF(NCID)
-        ENDIF
-        IF (NCLOOP == 2) THEN
-          IERR = NF90_ENDDEF(NCID)
-        ENDIF
-        IFI_LOOP: DO IFI=1, NOGRP
-          IFJ_LOOP: DO IFJ=1, NGRPP
-#else
       DO IFI=1, NOGRP
        DO IFJ=1, NGRPP
-#endif
+ 
         IF ( FLOGRD(IFI,IFJ) ) THEN
 !
             IF ( WRITE ) THEN
-
-#ifdef CESMCOUPLED
-                WAUX1 = .FALSE.  !CMB vars with dims (nx,ny) shoved into AUX1
-                WAUX2 = .FALSE.  !CMB y-component of vars with dims (nx,ny) shoved into AUX2
-                WAUX3 = .FALSE.  !CMB unused
-                WAUXE = .FALSE.  !CMB wave height of partition vars with dims of NOSWLL, a mess
-                WAUXEF = .FALSE. !CMB for vars with dims of (Freq,nx,ny) shoved into AUXEF
-#endif
 !
 !     Section 1)
 !
                 IF ( IFI .EQ. 1 .AND. IFJ .EQ. 1 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) DW(1:NSEA)
-#else
-                    AUX1(1:NSEA) = DW(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'DW'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Water depth'  !CMB should use IDOUT here, see w3odatmd
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 2 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) CX(1:NSEA)
                     WRITE ( NDSOG ) CY(1:NSEA)
-#else
-                    AUX1(1:NSEA) = CX(1:NSEA)
-                    AUX2(1:NSEA) = CY(1:NSEA)
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'CX'
-                    FLDSTR2 = 'CY'
-                    UNITSTR1 = 'm/s'
-                    UNITSTR2 = 'm/s'
-                    LNSTR1 = 'Mean current, x-component'
-                    LNSTR2 = 'Mean current, y-component'
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 3 ) THEN
                     DO ISEA=1, NSEA
                       IF (UA(ISEA) .NE.UNDEF) THEN
@@ -2826,246 +2734,59 @@
                         AUX2(ISEA) = UNDEF
                        END IF
                       END DO
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) AUX1
                     WRITE ( NDSOG ) AUX2
-#else
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'UAX'
-                    FLDSTR2 = 'UAY'
-                    UNITSTR1 = 'm/s'
-                    UNITSTR2 = 'm/s'
-                    LNSTR1 = 'Mean wind, x-component'
-                    LNSTR2 = 'Mean wind, y-component'
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 4 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) AS(1:NSEA)
-#else
-                    AUX1(1:NSEA) = AS(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'AS'
-                    UNITSTR1 = 'deg C'
-                    LNSTR1 = 'Air-sea temperature difference'
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 5 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) WLV(1:NSEA)
-#else
-                    AUX1(1:NSEA) = WLV(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'WLV'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Water levels'
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 6 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) ICE(1:NSEA)
-#else
-                    AUX1(1:NSEA) = ICE(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'ICE'
-                    UNITSTR1 = '1'
-                    LNSTR1 = 'Ice coverage'
-#endif
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 7 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) BERG(1:NSEA)
-#else
-                    AUX1(1:NSEA) = BERG(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'BERG'
-                    UNITSTR1 = '1'
-                    LNSTR1 = ''
-#endif
+ 
 !
 !     Section 2)
 !
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 1 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HS(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HS(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HS'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Significant wave height'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 2 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) WLM(1:NSEA)
-                    AUX1(1:NSEA) = WLM(1:NSEA)
-#else
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'WLM'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Mean wave length'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 3 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) T02(1:NSEA)
-#else
-                    AUX1(1:NSEA) = T02(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'T02'
-                    UNITSTR1 = 's'
-                    LNSTR1 = 'Mean wave period'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 4 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) T0M1(1:NSEA)
-#else
-                    AUX1(1:NSEA) = T0M1(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'T0M1'
-                    UNITSTR1 = 's'
-                    LNSTR1 = 'Mean wave period'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 5 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) T01(1:NSEA)
-#else
-                    AUX1(1:NSEA) = T01(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'T01'
-                    UNITSTR1 = 's'
-                    LNSTR1 = 'Mean wave period'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 6 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) FP0(1:NSEA)
-#else
-                    AUX1(1:NSEA) = FP0(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'FP0'
-                    UNITSTR1 = 'Hz'
-                    LNSTR1 = 'Peak frequency'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 7 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) THM(1:NSEA)
-#else
-                    AUX1(1:NSEA) = THM(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'THM'
-                    UNITSTR1 = 'rad'
-                    LNSTR1 = 'Mean wave direction'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 8 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) THS(1:NSEA)
-#else
-                    AUX1(1:NSEA) = THS(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'THS'
-                    UNITSTR1 = 'rad'
-                    LNSTR1 = 'Mean directional spread'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 9 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) THP0(1:NSEA)
-#else
-                    AUX1(1:NSEA) = THP0(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'THP0'
-                    UNITSTR1 = 'rad'
-                    LNSTR1 = 'Peak direction'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 10 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HSIG(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HSIG(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HSIG'
-                    UNITSTR1 = '1'
-                    LNSTR1 = ''
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 11 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) STMAXE(1:NSEA)
-#else
-                    AUX1(1:NSEA) = STMAXE(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'STMAXE'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Max surface elev STE'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 12 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) STMAXD(1:NSEA)
-#else
-                    AUX1(1:NSEA) = STMAXD(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'STMAXD'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'St Dev Max surface elev STE'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 13 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HMAXE(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HMAXE(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HMAXE'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Max wave height STE'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 14 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HCMAXE(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HCMAXE(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HCMAXE'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Max wave height from crest STE'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 15 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HMAXD(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HMAXD(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HMAXD'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'St Dev of MXC (STE)'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 16 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) HCMAXD(1:NSEA)
-#else
-                    AUX1(1:NSEA) = HCMAXD(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'HCMAXD'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'St Dev of MXHC (STE)'
-#endif
                   ELSE IF ( IFI .EQ. 2 .AND. IFJ .EQ. 17 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) WBT(1:NSEA)
-#else
-                    AUX1(1:NSEA) = WBT(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'WBT'
-                    UNITSTR1 = 'm'
-                    LNSTR1 = 'Dominant wave breaking probability b'
-#endif
 !
 !     Section 3)
 !
                   ELSE IF ( IFI .EQ. 3 .AND. IFJ .EQ. 1 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) EF(1:NSEA,E3DF(2,1):E3DF(3,1))
-#else
-                    AUXEF(1:NSEA,E3DF(2,1):E3DF(3,1)) = EF(1:NSEA,E3DF(2,1):E3DF(3,1))
-                    WAUXEF = .TRUE.
-                    FLDSTRE = 'EF'
-                    UNITSTRE = '1'
-                    LNSTRE = '1D spectral density'
-#endif
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 3 .AND. IFJ .EQ. 2 ) THEN
                     WRITE ( NDSOG ) TH1M(1:NSEA,E3DF(2,2):E3DF(3,2))
                   ELSE IF ( IFI .EQ. 3 .AND. IFJ .EQ. 3 ) THEN
@@ -3076,41 +2797,15 @@
                     WRITE ( NDSOG ) STH2M(1:NSEA,E3DF(2,5):E3DF(3,5))
                   ELSE IF ( IFI .EQ. 3 .AND. IFJ .EQ. 6) THEN
                     WRITE ( NDSOG ) WN(1:NK,1:NSEA)
-#endif
 !
 !     Section 4)
 !
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 1 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) PHS(1:NSEA,0:NOSWLL)
-#else
-                    AUXE(1:NSEA,0:NOSWLL) = PHS(1:NSEA,0:NOSWLL)
-                    WAUXE = .TRUE.
-                    FLDSTRE = 'PHS'
-                    UNITSTRE = 'm'
-                    LNSTRE = 'Wave height of partitions'
-#endif
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 2 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) PTP(1:NSEA,0:NOSWLL)
-#else
-                    AUXE(1:NSEA,0:NOSWLL) = PTP(1:NSEA,0:NOSWLL)
-                    WAUXE = .TRUE.
-                    FLDSTRE = 'PTP'
-                    UNITSTRE = 's'
-                    LNSTRE = 'Peak wave period of partitions'
-#endif
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 3 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) PLP(1:NSEA,0:NOSWLL)
-#else
-                    AUXE(1:NSEA,0:NOSWLL) = PLP(1:NSEA,0:NOSWLL)
-                    WAUXE = .TRUE.
-                    FLDSTRE = 'PLP'
-                    UNITSTRE = 'm'
-                    LNSTRE = 'Peak wave length of partitions'
-#endif
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 4 ) THEN
                     WRITE ( NDSOG ) PDIR(1:NSEA,0:NOSWLL)
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 5 ) THEN
@@ -3139,7 +2834,6 @@
                     WRITE ( NDSOG ) PWST(1:NSEA)
                   ELSE IF ( IFI .EQ. 4 .AND. IFJ .EQ. 17 ) THEN
                     WRITE ( NDSOG ) PNR(1:NSEA)
-#endif
 !
 !     Section 5)
 !
@@ -3157,20 +2851,8 @@
                           AUX2(ISEA) = UNDEF
                         END IF
                       END DO
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) AUX1
                     WRITE ( NDSOG ) AUX2
-#else
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'ASFX'
-                    FLDSTR2 = 'ASFY'
-                    UNITSTR1 = 'm/s'
-                    UNITSTR2 = 'm/s'
-                    LNSTR1 = 'Skin friction velocity, x-component'
-                    LNSTR2 = 'Skin friction velocity, y-component'
-#endif
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 5 .AND. IFJ .EQ. 2 ) THEN
                     WRITE ( NDSOG ) CHARN(1:NSEA)
                   ELSE IF ( IFI .EQ. 5 .AND. IFJ .EQ. 3 ) THEN
@@ -3193,11 +2875,9 @@
                     WRITE ( NDSOG ) WHITECAP(1:NSEA,4)
                   ELSE IF ( IFI .EQ. 5 .AND. IFJ .EQ. 11 ) THEN
                     WRITE ( NDSOG ) TWS(1:NSEA)
-#endif
 !
 !     Section 6)
 !
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 1 ) THEN
                     WRITE ( NDSOG ) SXX(1:NSEA)
                     WRITE ( NDSOG ) SYY(1:NSEA)
@@ -3212,24 +2892,9 @@
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 5 ) THEN
                     WRITE ( NDSOG ) TUSX(1:NSEA)
                     WRITE ( NDSOG ) TUSY(1:NSEA)
-#endif
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 6 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) USSX(1:NSEA)
                     WRITE ( NDSOG ) USSY(1:NSEA)
-#else
-                    AUX1(1:NSEA) = USSX(1:NSEA)
-                    AUX2(1:NSEA) = USSY(1:NSEA)
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'USSX'
-                    FLDSTR2 = 'USSY'
-                    UNITSTR1 = 'm/s'
-                    UNITSTR2 = 'm/s'
-                    LNSTR1 = 'Stokes drift at z=0'
-                    LNSTR2 = 'Stokes drift at z=0'
-#endif
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 7 ) THEN
                     WRITE ( NDSOG ) PRMS(1:NSEA)
                     WRITE ( NDSOG ) TPMS(1:NSEA)
@@ -3246,15 +2911,6 @@
                  ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 12 ) THEN
                     WRITE ( NDSOG ) USSP(1:NSEA,   1:USSPF(2))
                     WRITE ( NDSOG ) USSP(1:NSEA,NK+1:NK+USSPF(2))
-#endif
-#ifdef CESMCOUPLED
-                 ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 13 ) THEN
-                    AUX1(1:NSEA) = LANGMT(1:NSEA)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'LANGMT'
-                    UNITSTR1 = ''
-                    LNSTR1 = 'Turbulent Langmuir number (La_t)'
-#endif
 !
 !     Section 7)
 !
@@ -3268,21 +2924,10 @@
                           AUX2(ISEA) = UNDEF
                         END IF
                       END DO
-#ifndef CESMCOUPLED
-                    WRITE ( NDSOG ) AUX1 !CMB error I think
-                    WRITE ( NDSOG ) AUX2 !CMB error I think
+                    WRITE ( NDSOG ) AUX1
+                    WRITE ( NDSOG ) AUX2
                     !WRITE ( NDSOG ) ABA(1:NSEA)
                     !WRITE ( NDSOG ) ABD(1:NSEA)
-#else
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'ABAX'
-                    FLDSTR2 = 'ABAY'
-                    UNITSTR1 = 'm'
-                    UNITSTR2 = 'm'
-                    LNSTR1 = 'Near bottom rms wave excursion amplitude, x-component'
-                    LNSTR2 = 'Near bottom rms wave excursion amplitude, y-component'
-#endif
                   ELSE IF ( IFI .EQ. 7 .AND. IFJ .EQ. 2 ) THEN
                     DO ISEA=1, NSEA
                       IF ( UBA(ISEA) .NE. UNDEF ) THEN
@@ -3293,22 +2938,10 @@
                           AUX2(ISEA) = UNDEF
                         END IF
                       END DO
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) AUX1
                     WRITE ( NDSOG ) AUX2
-#else
-                    WAUX1 = .TRUE.
-                    WAUX2 = .TRUE.
-                    FLDSTR1 = 'UBAX'
-                    FLDSTR2 = 'UBAY'
-                    UNITSTR1 = 'm/s'
-                    UNITSTR2 = 'm/s'
-                    LNSTR1 = 'Near bottom rms wave velocity, x-component'
-                    LNSTR2 = 'Near bottom rms wave velocity, y-component'
-#endif
-                    ! WRITE ( NDSOG ) UBA(1:NSEA)
-                    ! WRITE ( NDSOG ) UBD(1:NSEA)
-#ifndef CESMCOUPLED
+!                    WRITE ( NDSOG ) UBA(1:NSEA)
+!                    WRITE ( NDSOG ) UBD(1:NSEA)
                   ELSE IF ( IFI .EQ. 7 .AND. IFJ .EQ. 3 ) THEN
                     WRITE ( NDSOG ) BEDFORMS(1:NSEA,1)
                     WRITE ( NDSOG ) BEDFORMS(1:NSEA,2)
@@ -3318,11 +2951,9 @@
                   ELSE IF ( IFI .EQ. 7 .AND. IFJ .EQ. 5 ) THEN
                     WRITE ( NDSOG ) TAUBBL(1:NSEA,1)
                     WRITE ( NDSOG ) TAUBBL(1:NSEA,2)
-#endif
 !
 !     Section 8)
 !
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 8 .AND. IFJ .EQ. 1 ) THEN
                     WRITE ( NDSOG ) MSSX(1:NSEA)
                     WRITE ( NDSOG ) MSSY(1:NSEA)
@@ -3335,11 +2966,9 @@
                     WRITE ( NDSOG ) MSCD(1:NSEA)
                   ELSE IF ( IFI .EQ. 8 .AND. IFJ .EQ. 5 ) THEN
                     WRITE ( NDSOG ) QP(1:NSEA)
-#endif
 !
 !     Section 9)
 !
-#ifndef CESMCOUPLED
                   ELSE IF ( IFI .EQ. 9 .AND. IFJ .EQ. 1 ) THEN
                     WRITE ( NDSOG ) DTDYN(1:NSEA)
                   ELSE IF ( IFI .EQ. 9 .AND. IFJ .EQ. 2 ) THEN
@@ -3350,142 +2979,20 @@
                     WRITE ( NDSOG ) CFLTHMAX(1:NSEA)
                   ELSE IF ( IFI .EQ. 9 .AND. IFJ .EQ. 5 ) THEN
                     WRITE ( NDSOG ) CFLKMAX(1:NSEA)
-#endif
 !
 !     Section 10)
 !
                   ELSE IF ( IFI .EQ. 10 ) THEN
-#ifndef CESMCOUPLED
                     WRITE ( NDSOG ) USERO(1:NSEA,IFJ)
-#else
-                    AUX1(1:NSEA) = USERO(1:NSEA,2)
-                    WAUX1 = .TRUE.
-                    FLDSTR1 = 'USERO'
-                    UNITSTR1 = '1'
-                    LNSTR1 = 'User defined variable'
-#endif
 !
                   END IF
 !
-#if CESMCOUPLED
-                  ! cesm history
-                  IF (NCLOOP == 1) THEN
-                    ! write(ndse,*) 'CMB w3iogo NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
-                    !--- no error checking here in case file/vars exists already ---
-                    IF (WAUX1) THEN
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX1=T, FLDSTR1, VARID1', TRIM(FLDSTR1), VARID1
-                      IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTR1),NF90_FLOAT,DIMID(1:2),VARID1)
-                      IERR = NF90_PUT_ATT(NCID,VARID1,"_FillValue",UNDEF)
-                      IERR = NF90_PUT_ATT(NCID,VARID1,"units",UNITSTR1)
-                      IERR = NF90_PUT_ATT(NCID,VARID1,"long_name",LNSTR1)
-                    ENDIF
-                    IF (WAUX2) THEN
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX2=T, FLDSTR2, VARID2', TRIM(FLDSTR2), VARID2
-                      IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTR2),NF90_FLOAT,DIMID(1:2),VARID2)
-                      IERR = NF90_PUT_ATT(NCID,VARID2,"_FillValue",UNDEF)
-                      IERR = NF90_PUT_ATT(NCID,VARID2,"units",UNITSTR2)
-                      IERR = NF90_PUT_ATT(NCID,VARID2,"long_name",LNSTR2)
-                    ENDIF
-                    IF (WAUX3) THEN
-                      IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTR3),NF90_FLOAT,DIMID(1:2),VARID3)
-                      IERR = NF90_PUT_ATT(NCID,VARID3,"_FillValue",UNDEF)
-                      IERR = NF90_PUT_ATT(NCID,VARID3,"units",UNITSTR3)
-                      IERR = NF90_PUT_ATT(NCID,VARID3,"long_name",LNSTR3)
-                    ENDIF
-                    IF (WAUXE) THEN
-                      IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTRE),NF90_FLOAT,DIMID(1:3),VARIDE)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"_FillValue",UNDEF)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"units",UNITSTRE)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"long_name",LNSTRE)
-                    ENDIF
-                    IF (WAUXEF) THEN
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUXEF=T, FLDSTRE, VARIDE', TRIM(FLDSTRE), VARIDE
-                      IERR = NF90_DEF_VAR(NCID,TRIM(FLDSTRE),NF90_FLOAT,(/DIMID(1),DIMID(2),DIMID(4)/),VARIDE)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"_FillValue",UNDEF)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"units",UNITSTRE)
-                      IERR = NF90_PUT_ATT(NCID,VARIDE,"long_name",LNSTRE)
-                   ENDIF
-
-                  ELSEIF (NCLOOP == 2) THEN
-                    ! write(ndse,*) 'CMB w3iogo write NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
-                    IF (WAUX1) THEN
-                       ! write(ndso,*) 'w3iogo write ',trim(fldstr1)
-                       !CMB WRITE ( NDSOG ) AUX1(1:NSEA)
-                      AUX2D1 = UNDEF
-                      DO ISEA=1, NSEA
-                         AUX2D1(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX1(ISEA)
-                      ENDDO
-                      IERR = NF90_INQ_VARID(NCID,TRIM(FLDSTR1),VARID1)
-                      CALL HANDLE_ERR(IERR,'INQ_VARID_AUX2D1_'//TRIM(FLDSTR1))
-                      IERR = NF90_PUT_VAR(NCID,VARID1,AUX2D1)
-                      CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D1_'//TRIM(FLDSTR1))
-                    ENDIF
-                    IF (WAUX2) THEN
-                       ! write(ndso,*) 'w3iogo write ',trim(fldstr2)
-                       !CMB WRITE ( NDSOG ) AUX2(1:NSEA)
-                      AUX2D2 = UNDEF
-                      DO ISEA=1, NSEA
-                         AUX2D2(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX2(ISEA)
-                      ENDDO
-                      IERR = NF90_INQ_VARID(NCID,TRIM(FLDSTR2),VARID2)
-                      CALL HANDLE_ERR(IERR,'INQ_VARID_AUX2D2_'//TRIM(FLDSTR2))
-                      IERR = NF90_PUT_VAR(NCID,VARID2,AUX2D2)
-                      CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D2_'//TRIM(FLDSTR2))
-                    ENDIF
-                    IF (WAUX3) THEN
-                      ! write(ndso,*) 'w3iogo write ',trim(fldstr3)
-                      !CMB WRITE ( NDSOG ) AUX3(1:NSEA)
-                      AUX2D3 = UNDEF
-                      DO ISEA=1, NSEA
-                         AUX2D3(MAPSF(ISEA,1),MAPSF(ISEA,2)) = AUX3(ISEA)
-                      ENDDO
-                      IERR = NF90_INQ_VARID(NCID,TRIM(FLDSTR3),VARID3)
-                      CALL HANDLE_ERR(IERR,'INQ_VARID_AUX2D3_'//TRIM(FLDSTR3))
-                      IERR = NF90_PUT_VAR(NCID,VARID3,AUX2D3)
-                      CALL HANDLE_ERR(IERR,'PUT_VAR_AUX2D3_'//TRIM(FLDSTR3))
-                    ENDIF
-                    IF (WAUXE) THEN
-                      ! write(ndso,*) 'w3iogo write ',trim(fldstre)
-                      !CMB WRITE ( NDSOG ) AUXE(1:NSEA,0:NOSWLL)
-                      AUX3DE = UNDEF
-                      DO ISEA=1, NSEA
-                         AUX3DE(MAPSF(ISEA,1),MAPSF(ISEA,2),0:NOSWLL) = AUXE(ISEA,0:NOSWLL)
-                      ENDDO
-                      IERR = NF90_INQ_VARID(NCID,TRIM(FLDSTRE),VARIDE)
-                      CALL HANDLE_ERR(IERR,'INQ_VARID_AUX2D1_'//TRIM(FLDSTRE))
-                      IERR = NF90_PUT_VAR(NCID,VARIDE,AUX3DE)
-                      CALL HANDLE_ERR(IERR,'PUT_VAR_AUX3DE_'//TRIM(FLDSTRE))
-                    ENDIF
-                    IF (WAUXEF) THEN
-                       ! write(ndso,*) 'w3iogo write ',trim(fldstre)
-                       !CMB  WRITE ( NDSOG ) AUXEF(1:NSEA,E3DF(2,1):E3DF(3,1))
-                      AUX3DEF = UNDEF
-                      DO ISEA=1, NSEA
-                         AUX3DEF(MAPSF(ISEA,1),MAPSF(ISEA,2),E3DF(2,1):E3DF(3,1)) = AUXEF(ISEA,E3DF(2,1):E3DF(3,1))
-                      ENDDO
-                      IERR = NF90_INQ_VARID(NCID,TRIM(FLDSTRE),VARIDE)
-                      CALL HANDLE_ERR(IERR,'INQ_VARID_AUX2D1_'//TRIM(FLDSTRE))
-                      IERR = NF90_PUT_VAR(NCID,VARIDE,AUX3DEF)
-                      CALL HANDLE_ERR(IERR,'PUT_VAR_AUX3DE_'//TRIM(FLDSTRE))
-                    ENDIF
-
-                ENDIF !NC
-
-              !CMB this was never called since loop is NCLOOP=1,2 force skip as
-              !precaution since NDSOG no longer exists
-              ELSE IF (.FALSE.) THEN
-#else
               ELSE
-#endif
 !
 !     Start of reading ......
 !
 !     Section 1)
 !
-#ifdef CESMCOUPLED
-                write(ndse,*) 'CMB w3iogo READ ',IFI,IFJ
-#endif
-
                 IF ( IFI .EQ. 1 .AND. IFJ .EQ. 1 ) THEN
                     READ (NDSOG,END=801,ERR=802,IOSTAT=IERR) DW(1:NSEA)
                   ELSE IF ( IFI .EQ. 1 .AND. IFJ .EQ. 2 ) THEN
@@ -3716,12 +3223,7 @@
                                    USSP(1:NSEA,1:USSPF(2))
                      READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)  &
                                    USSP(1:NSEA,NK+1:NK+USSPF(2))
-#ifdef CESMCOUPLED
-                  ELSE IF ( IFI .EQ. 6 .AND. IFJ .EQ. 13 ) THEN
-                    READ (NDSOG,END=801,ERR=802,IOSTAT=IERR)         &
-                                                       LANGMT(1:NSEA)
-#endif
-
+ 
 !
 !     Section 7)
 !
@@ -3800,25 +3302,11 @@
 ! End of test on  FLOGRD(IFI,IFJ):
 !
           END IF
-#ifdef CESMCOUPLED
-!
-! End of IFI, IFJ, and NCLOOP loops
-!
-         END DO IFJ_LOOP
-        END DO IFI_LOOP
-      END DO NC_LOOP
-
-      IERR = NF90_CLOSE(NCID)
-      CALL HANDLE_ERR(IERR,'CLOSE')
-      DEALLOCATE(AUX2D1,AUX2D2,AUX2D3,AUX3DE,AUX3DEF)
-#else
 !
 ! End of IFI and IFJ loops
 !
          END DO
         END DO
-#endif
-
 !
 ! Flush the buffers for write
 !
