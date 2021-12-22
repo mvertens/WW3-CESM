@@ -245,8 +245,7 @@
       USE W3GDATMD, ONLY: NK, NTH
 #ifdef CESMCOUPLED
       USE W3ADATMD       , only : LAMULT
-      use wav_cesm_mod   , only : cesm_rest_filename
-      use wav_shr_methods, only : runtype
+      USE WAV_SHR_METHODS, ONLY : RUNTYPE
 #endif
 !!!!!/PDLIB    USE PDLIB_FIELD_VEC!, only : UNST_PDLIB_READ_FROM_FILE, UNST_PDLIB_WRITE_TO_FILE
 !
@@ -354,7 +353,7 @@
       ENDIF
 
 #ifdef CESMCOUPLED
-      call cesm_rest_filename(WRITE, TIME, FNAME)
+      call CESM_REST_FILENAME(WRITE, FNAME)
       IFILE  = IFILE + 1
 
       IF ( WRITE ) THEN
@@ -904,6 +903,69 @@
 !/ End of W3IORS ----------------------------------------------------- /
 !/
       END SUBROUTINE W3IORS
+!/ ------------------------------------------------------------------- /
+#ifdef CESMCOUPLED
+      SUBROUTINE CESM_REST_FILENAME(LWRITE, FNAME) 
+
+        USE WAV_CESM_MOD   , ONLY : CASENAME, INITFILE, INST_SUFFIX 
+        USE WAV_SHR_METHODS, ONLY : RUNTYPE, STDOUT, ROOT_TASK
+        USE W3WDATMD       , ONLY : TIME
+        USE W3SERVMD       , ONLY : EXTCDE
+
+        ! input/output variables
+        logical, intent(in)           :: lwrite
+        character(len=*), intent(out) :: fname
+
+        ! local variables
+        integer :: yy,mm,dd,hh,mn,ss,totsec
+        logical :: exists
+        !----------------------------------------------
+
+        yy =  time(1)/10000
+        mm = (time(1)-yy*10000)/100
+        dd = (time(1)-yy*10000-mm*100)
+        hh = time(2)/10000
+        mn = (time(2)-hh*10000)/100
+        ss = (time(2)-hh*10000-mn*100)
+        totsec = hh*3600+mn*60+ss
+
+        if (len_trim(inst_suffix) > 0) then
+           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                trim(casename)//&
+                &'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
+        else
+           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
+        endif
+
+        if (len_trim(inst_suffix) > 0) then
+           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                trim(casename)//&
+                &'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
+        else
+           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
+        endif
+
+        ! if read
+        if (lwrite) then
+           if ( root_task ) then
+              write (stdout,'(a)') ' writing restart file '//trim(fname)
+           end if
+        else
+           if (runtype /= 'continue') fname = initfile
+           inquire( file=fname, exist=exists)
+           if (.not. exists ) then
+              CALL EXTCDE (60, MSG="required initial/restart file " // trim(fname) // "does not exist")
+           else
+              if ( root_task) then
+                 write (stdout,'(a)') ' reading initial/restart file '//trim(fname)
+              end if
+           end if
+        end if
+
+      end subroutine cesm_rest_filename
+#endif
 !/
 !/ End of module W3IORSMD -------------------------------------------- /
 !/
