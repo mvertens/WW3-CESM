@@ -1,12 +1,12 @@
 #include "w3macros.h"
 
-module W3IOGO_CESM
+module W3IOGONCDMD
 
 #ifdef CESMCOUPLED
   
 contains
 
-  subroutine W3IOGO_CESM_NETCDF ()
+  subroutine W3IOGONCD ()
 
     USE CONSTANTS
     USE W3WDATMD, ONLY: W3SETW, W3DIMW, TIME, WLV, ICE, ICEF, ICEH, BERG, UST, USTDIR, ASF
@@ -649,8 +649,8 @@ contains
     ! Flush the buffers for write
     call W3SETA ( IGRD, NDSE, NDST )
 
-  end subroutine W3IOGO_CESM_NETCDF
+  end subroutine W3IOGONCD
 
 #endif
 
-end module W3IOGO_CESM
+end module W3IOGONCDMD

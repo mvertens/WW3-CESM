@@ -379,7 +379,7 @@
 #ifdef CESMCOUPLED
       ! flags for restart and history writes
       use wav_cesm_mod, only : RSTWR, HISTWR
-      use w3iogo_cesm , only : w3iogo_cesm_netcdf
+      use w3iogoncdmd , only : w3iogoncd
 #endif
 !
       IMPLICIT NONE
@@ -1461,7 +1461,7 @@
                                  ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
                               FLGMPI(1) = .FALSE.
                               write(*,*) 'w3wavemd: hist flag 2', j, histwr, time, IERR_MPI
-                              IF ( J .EQ. 1 ) CALL W3IOGO_CESM_NETCDF ()
+                              IF ( J .EQ. 1 ) CALL W3IOGONCD ()
                           END IF
 #else
                       IF ( ( J .EQ. 1 ) .OR. ( J .EQ. 7 ) ) THEN
@@ -1471,7 +1471,7 @@
                               IF ( FLGMPI(1) ) CALL MPI_WAITALL  &
                                  ( NRQGO2, IRQGO2, STATIO, IERR_MPI )
                               FLGMPI(1) = .FALSE.
-                              IF ( J .EQ. 1 ) CALL W3IOGO             &  !for master only????
+                              IF ( J .EQ. 1 ) CALL W3IOGO             &
                                  ( 'WRITE', NDS(7), ITEST, IMOD )
                           END IF
 #endif
