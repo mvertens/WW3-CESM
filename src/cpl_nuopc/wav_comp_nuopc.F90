@@ -1235,7 +1235,7 @@ contains
 
     rc = ESMF_SUCCESS
 
-    namelist /ww3_inparm/ initfile, outfreq
+    namelist /ww3_inparm/ initfile, outfreq, dtcfl, dtcfli, dtmax, dtmin
 
     ! Redirect share output to wav log
     call shr_file_getLogUnit (shrlogunit)
@@ -1552,15 +1552,6 @@ contains
     ! IsMulti does not appear to be used, setting to .true.
     call w3init ( 1, .true., 'ww3', nds, ntrace, odat, flgrd, flgrd2, flg, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
-
-    ! gx17
-    !180.0000       180.0000       180.0000       15.00000
-    ! TODO: is it correct to have these hard-wired here?
-    dtmax  = 1800.0000 ! LR
-    dtcfl  = 600.0000
-    dtcfli = 1800.0000
-    dtmin  = 1800.00000
-    print *, 'Initialize Realize dtmax, dtcfl,dtcfli, dtmin',  dtmax, dtcfl, dtcfli, dtmin
 
   end subroutine waveinit_cesm
 #endif

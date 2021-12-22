@@ -89,4 +89,55 @@
     </desc>
   </entry>
 
+  <entry id="dtmax">
+    <type>real</type>
+    <group>ww3_inparm</group>
+    <category>setup</category>
+    <values>
+      <value wav_grid="ww3a">3600.</value>
+      <value wav_grid="gx1v7">1800.</value>
+      <value wav_grid="wtx0.66v1">1200.</value>
+    </values>
+    <desc>
+      Maximum overall time step
+    </desc>
+  </entry>
+  <entry id="dtcfl">
+    <type>real</type>
+    <group>ww3_inparm</group>
+    <category>setup</category>
+    <values>
+      <value wav_grid="ww3a">1800.</value>
+      <value wav_grid="gx1v7">900.</value>
+      <value wav_grid="wtx0.66v1">600.</value>
+    </values>
+    <desc>
+      Maximum CFL time step X-Y propagation.
+    </desc>
+  </entry>
+  <entry id="dtcfli">
+    <type>real</type>
+    <group>ww3_inparm</group>
+    <category>setup</category>
+    <values>
+      <value wav_grid="ww3a">1800.</value>
+      <value wav_grid="gx1v7">900.</value>
+      <value wav_grid="wtx0.66v1">600.</value>
+    </values>
+    <desc>
+      Id. intra-spectral
+    </desc>
+  </entry>
+  <entry id="dtmin">
+    <type>real</type>
+    <group>ww3_inparm</group>
+    <category>setup</category>
+    <values>
+      <value>10</value>
+    </values>
+    <desc>
+      Minimum dynamic time step for source
+    </desc>
+  </entry>
+
 </entry_id>
