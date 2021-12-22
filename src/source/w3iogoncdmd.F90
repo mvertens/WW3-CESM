@@ -692,8 +692,7 @@ contains
 #ifdef CESMCOUPLED
   subroutine cesm_hist_filename(fname)
 
-    USE WAV_CESM_MOD   , ONLY : CASENAME, INST_SUFFIX
-    USE WAV_SHR_METHODS, ONLY : ROOT_TASK, STDOUT
+    USE WAV_SHR_MOD    , ONLY : CASENAME, INST_SUFFIX, ROOT_TASK, STDOUT
     USE W3WDATMD       , ONLY : TIME
 
     implicit none

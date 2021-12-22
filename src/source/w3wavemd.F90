@@ -378,8 +378,8 @@
 
 #ifdef CESMCOUPLED
       ! flags for restart and history writes
-      use wav_cesm_mod, only : RSTWR, HISTWR
-      use w3iogoncdmd , only : w3iogoncd
+      USE WAV_SHR_MOD , only : RSTWR, HISTWR
+      USE W3IOGONCDMD , ONLY : W3IOGONCD
 #endif
 !
       IMPLICIT NONE

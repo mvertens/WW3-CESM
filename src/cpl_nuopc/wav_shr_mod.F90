@@ -1,4 +1,4 @@
-module wav_shr_methods
+module wav_shr_mod
 
   use ESMF            , only : operator(<), operator(/=), operator(+)
   use ESMF            , only : operator(-), operator(*) , operator(>=)
@@ -37,9 +37,25 @@ module wav_shr_methods
 
   ! used by both CESM and UFS
   ! runtype is used by W3SRCE (values are startup, branch, continue)
-  logical, public           :: root_task
-  integer, public           :: stdout
-  character(len=cs), public :: runtype
+  logical           , public :: root_task
+  integer           , public :: stdout
+  character(len=cs) , public :: runtype
+
+#ifdef CESMCOUPLED
+  ! if a run is a startup or branch run, then initfile is used
+  ! to construct the initial file and used in W3IORSMD
+  character(len=256) , public :: initfile
+
+  ! if a run is a continue run, then casename is used to construct
+  ! the restart filename in W3IORSMD
+  character(len=256) , public :: casename
+  logical            , public :: rstwr       ! true => write restart
+  logical            , public :: histwr      ! true => write history file (snapshot)
+  integer            , public :: outfreq     ! output frequency in hours
+  integer            , public :: inst_index  ! number of current instance (ie. 1)
+  character(len=16)  , public :: inst_name   ! fullname of current instance (ie. "wav_0001")
+  character(len=16)  , public :: inst_suffix ! char string associated with instance
+#endif
 
   interface ymd2date
      module procedure ymd2date_int
@@ -901,4 +917,4 @@ contains
     endif
   end function chkerr
 
-end module wav_shr_methods
+end module wav_shr_mod

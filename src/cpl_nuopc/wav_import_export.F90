@@ -3,11 +3,11 @@ module wav_import_export
   use ESMF
   use NUOPC
   use NUOPC_Model
-  use wav_kind_mod    , only : r8 => shr_kind_r8
-  use wav_shr_methods , only : ymd2date
-  use wav_shr_methods , only : chkerr
-  use wav_shr_methods , only : state_diagnose, state_reset
-  use constants       , only : grav, tpi, dwat
+  use wav_kind_mod , only : r8 => shr_kind_r8
+  use wav_shr_mod  , only : ymd2date
+  use wav_shr_mod  , only : chkerr
+  use wav_shr_mod  , only : state_diagnose, state_reset
+  use constants    , only : grav, tpi, dwat
 
   implicit none
   private ! except
@@ -1217,7 +1217,7 @@ contains
 #ifdef W3_ST4
     use w3src4md,   only : w3spr4
 #endif
-    use wav_shr_methods, only : runtype
+    use wav_shr_mod, only : runtype
 
     ! input/output variables
     real(r8)         , pointer    :: wrln(:) ! 2D roughness length export field ponter
