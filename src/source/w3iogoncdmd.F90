@@ -2,11 +2,12 @@
 
 module W3IOGONCDMD
 
-#ifdef CESMCOUPLED
-  
 contains
 
+!/ ------------------------------------------------------------------- /
   subroutine W3IOGONCD ()
+
+    ! Write netcdf ww3 history output
 
     USE CONSTANTS
     USE W3WDATMD, ONLY: W3SETW, W3DIMW, TIME, WLV, ICE, ICEF, ICEH, BERG, UST, USTDIR, ASF
@@ -28,12 +29,13 @@ contains
     USE W3ADATMD, ONLY: CFLXYMAX, CFLTHMAX, CFLKMAX, P2SMS, US3D
     USE W3ADATMD, ONLY: TH1M, STH1M, TH2M, STH2M, HSIG, PHICE, TAUICE
     USE W3ADATMD, ONLY: STMAXE, STMAXD, HMAXE, HCMAXE, HMAXD, HCMAXD, USSP
-    USE wav_cesm_mod, only : cesm_hist_filename, handle_err
-    USE netcdf
+    USE NETCDF
 
     IMPLICIT NONE
-
-    !/ Local parameters
+!/
+!/ ------------------------------------------------------------------- /
+!/ Local parameters
+!/
     INTEGER                 :: IGRD, IERR, I, J, IX, IY, ISEA, IFI, IFJ
     REAL                    :: AUX1(NSEA), AUX2(NSEA), AUX3(NSEA), AUX4(NSEA)
     REAL                    :: AUXE(NSEA,0:NOSWLL), AUXEF(NSEA,E3DF(2,1):E3DF(3,1))
@@ -44,8 +46,14 @@ contains
     CHARACTER(LEN=16)       :: FLDSTR1, FLDSTR2, FLDSTR3, FLDSTRE
     CHARACTER(LEN=16)       :: UNITSTR1, UNITSTR2, UNITSTR3, UNITSTRE
     CHARACTER(LEN=128)      :: LNSTR1, LNSTR2, LNSTR3, LNSTRE
-    INTEGER                 :: ncid, dimid(4)
-
+    INTEGER                 :: EF_LEN
+    INTEGER                 :: NCID, DIMID(4)
+    CHARACTER(len=1024)     :: FNAME
+    LOGICAL                 :: EXISTS
+!/
+!/ ------------------------------------------------------------------- /
+!/
+!
     IGRD   = 1
     CALL W3SETO ( IGRD, NDSE, NDST )
     CALL W3SETG ( IGRD, NDSE, NDST )
@@ -63,8 +71,37 @@ contains
     ! -------------------------------------------------------------
     ! Create the netcdf file and return the ncid and dimid
     ! -------------------------------------------------------------
-    write(6,*)'I AM HERE'
-    call cesm_hist_filename(nx, ny, noswll, time, e3df, ncid, dimid)
+#ifdef CESMCOUPLED
+    call cesm_hist_filename(fname)
+#else
+    ! fill this in for ufs
+#endif
+
+    ef_len = e3df(3,1) - e3df(2,1) + 1
+    inquire(file=trim(fname),exist=exists)
+    if (.not. exists) then
+       ierr = nf90_create(trim(fname),nf90_clobber,ncid)
+       call handle_err(ierr,'create')
+       ierr = nf90_def_dim(ncid,'nx',nx,dimid(1))
+       call handle_err(ierr,'def_dimid1')
+       ierr = nf90_def_dim(ncid,'ny',ny,dimid(2))
+       call handle_err(ierr,'def_dimid2')
+       ierr = nf90_def_dim(ncid,'noswll',noswll+1,dimid(3))
+       call handle_err(ierr,'def_dimid3')
+       ierr = nf90_def_dim(ncid,'freq', ef_len, dimid(4)) !ef_len=25
+       call handle_err(ierr,'def_dimid4')
+    else
+       ierr = nf90_open(trim(fname),nf90_write,ncid)
+       call handle_err(ierr,'open')
+       ierr = nf90_inq_dimid(ncid,'nx',dimid(1))
+       call handle_err(ierr,'inq_dimid1')
+       ierr = nf90_inq_dimid(ncid,'ny',dimid(2))
+       call handle_err(ierr,'inq_dimid2')
+       ierr = nf90_inq_dimid(ncid,'noswll',dimid(3))
+       call handle_err(ierr,'inq_dimid3')
+       ierr = nf90_inq_dimid(ncid,'freq',dimid(4)) !ef_len=25
+       call handle_err(ierr,'inq_dimid4')
+    endif
 
     ! -------------------------------------------------------------
     ! Initialization
@@ -238,11 +275,11 @@ contains
        IFI_LOOP: do IFI=1, NOGRP
           IFJ_LOOP: do IFJ=1, NGRPP
              if ( FLOGRD(IFI,IFJ) ) then
-                WAUX1 = .false.  !CMB vars with dims (nx,ny) shoved into AUX1
-                WAUX2 = .false.  !CMB y-component of vars with dims (nx,ny) shoved into AUX2
-                WAUX3 = .false.  !CMB unused
-                WAUXE = .false.  !CMB wave height of partition vars with dims of NOSWLL, a mess
-                WAUXEF = .false. !CMB for vars with dims of (Freq,nx,ny) shoved into AUXEF
+                WAUX1 = .false.  ! vars with dims (nx,ny) shoved into AUX1
+                WAUX2 = .false.  ! y-component of vars with dims (nx,ny) shoved into AUX2
+                WAUX3 = .false.  ! unused
+                WAUXE = .false.  ! wave height of partition vars with dims of NOSWLL, a mess
+                WAUXEF = .false. ! for vars with dims of (Freq,nx,ny) shoved into AUXEF
                 !
                 !     Section 1)
                 !
@@ -540,19 +577,19 @@ contains
                    LNSTR1 = 'User defined variable'
                 end if
 
-                ! cesm history
+                ! netcdf history
                 if (NCLOOP == 1) then
-                   ! write(ndse,*) 'CMB w3iogo NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
+                   ! write(ndse,*) 'w3iogo NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
                    !--- no error checking here in case file/vars exists already ---
                    if (WAUX1) then
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX1=T, FLDSTR1, VARID1', TRIM(FLDSTR1), VARID1
+                      ! write(ndse,*) ' w3iogo NCLOOP=1, WAUX1=T, FLDSTR1, VARID1', TRIM(FLDSTR1), VARID1
                       IERR = NF90_DEF_VAR(NCID,trim(FLDSTR1),NF90_FLOAT,DIMID(1:2),VARID1)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"units",UNITSTR1)
                       IERR = NF90_PUT_ATT(NCID,VARID1,"long_name",LNSTR1)
                    endif
                    if (WAUX2) then
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUX2=T, FLDSTR2, VARID2', TRIM(FLDSTR2), VARID2
+                      ! write(ndse,*) ' w3iogo NCLOOP=1, WAUX2=T, FLDSTR2, VARID2', TRIM(FLDSTR2), VARID2
                       IERR = NF90_DEF_VAR(NCID,trim(FLDSTR2),NF90_FLOAT,DIMID(1:2),VARID2)
                       IERR = NF90_PUT_ATT(NCID,VARID2,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARID2,"units",UNITSTR2)
@@ -571,7 +608,7 @@ contains
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"long_name",LNSTRE)
                    endif
                    if (WAUXEF) then
-                      ! write(ndse,*) 'CMB w3iogo NCLOOP=1, WAUXEF=T, FLDSTRE, VARIDE', TRIM(FLDSTRE), VARIDE
+                      ! write(ndse,*) ' w3iogo NCLOOP=1, WAUXEF=T, FLDSTRE, VARIDE', TRIM(FLDSTRE), VARIDE
                       IERR = NF90_DEF_VAR(NCID,trim(FLDSTRE),NF90_FLOAT,(/DIMID(1),DIMID(2),DIMID(4)/),VARIDE)
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"_FillValue",UNDEF)
                       IERR = NF90_PUT_ATT(NCID,VARIDE,"units",UNITSTRE)
@@ -579,7 +616,7 @@ contains
                    endif
 
                 elseif (NCLOOP == 2) then
-                   ! write(ndse,*) 'CMB w3iogo write NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
+                   ! write(ndse,*) ' w3iogo write NCLOOP=',NCLOOP, WAUX1, WAUX2, WAUX3,WAUXE,WAUXEF
                    if (WAUX1) then
                       ! write(ndso,*) 'w3iogo write ',trim(fldstr1)
                       AUX2D1 = UNDEF
@@ -651,6 +688,62 @@ contains
 
   end subroutine W3IOGONCD
 
+!/ ------------------------------------------------------------------- /
+#ifdef CESMCOUPLED
+  subroutine cesm_hist_filename(fname)
+
+    USE WAV_CESM_MOD   , ONLY : CASENAME, INST_SUFFIX
+    USE WAV_SHR_METHODS, ONLY : ROOT_TASK, STDOUT
+    USE W3WDATMD       , ONLY : TIME
+
+    implicit none
+
+    ! input/output variables
+    character(len=*), intent(out) :: fname
+
+    ! local variables
+    integer           :: yy,mm,dd,hh,mn,ss,totsec
+    !----------------------------------------------
+    
+    yy =  time(1)/10000
+    mm = (time(1)-yy*10000)/100
+    dd = (time(1)-yy*10000-mm*100)
+    hh = time(2)/10000
+    mn = (time(2)-hh*10000)/100
+    ss = (time(2)-hh*10000-mn*100)
+    totsec = hh*3600+mn*60+ss
+
+    if (len_trim(inst_suffix) > 0) then
+       write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5,a)') &
+            trim(casename)//'.ww3'//trim(inst_suffix)//'.hi.',yy,'-',mm,'-',dd,'-',totsec,'.nc'
+    else
+       write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5,a)') &
+            trim(casename)//'.ww3.hi.',yy,'-',mm,'-',dd,'-',totsec,'.nc'
+    endif
+
+    if (root_task) then
+        write(stdout,'(a)') 'w3iogomdncd: writing history '//trim(fname)
+     end if
+
+   end subroutine cesm_hist_filename
 #endif
+
+!/ ------------------------------------------------------------------- /
+  SUBROUTINE HANDLE_ERR(IERR,STRING)
+    USE W3ODATMD, ONLY: NDSE 
+    USE W3SERVMD, ONLY: EXTCDE
+    USE NETCDF
+
+    IMPLICIT NONE
+
+    ! input/output variables
+    integer         ,intent(in) :: ierr
+    character(len=*),intent(in) :: string
+
+    IF (IERR /= NF90_NOERR) then 
+         WRITE(NDSE,*) "*** WAVEWATCH III netCDF error: ",trim(string),':',trim(nf90_strerror(IERR))
+         CALL EXTCDE ( 49 )
+    END IF
+  end SUBROUTINE HANDLE_ERR
 
 end module W3IOGONCDMD
