@@ -343,12 +343,12 @@ contains
 
   subroutine InitializeRealize(gcomp, importState, exportState, clock, rc)
 
-    use w3odatmd , only : w3nout, w3seto, naproc, iaproc, naperr, napout, nds
-    use w3timemd , only : stme21
-    use w3adatmd , only : w3naux, w3seta
-    use w3idatmd , only : w3seti, w3ninp
-    use w3gdatmd , only : nseal, nsea, nx, ny, mapsf, w3nmod, w3setg, nx, ny
-    use w3wdatmd , only : time, w3ndat, w3dimw, w3setw
+    use w3odatmd     , only : w3nout, w3seto, naproc, iaproc, naperr, napout, nds
+    use w3timemd     , only : stme21
+    use w3adatmd     , only : w3naux, w3seta
+    use w3idatmd     , only : w3seti, w3ninp
+    use w3gdatmd     , only : nseal, nsea, nx, ny, mapsf, w3nmod, w3setg, nx, ny
+    use w3wdatmd     , only : time, w3ndat, w3dimw, w3setw
 
     ! input/output variables
     type(ESMF_GridComp)  :: gcomp
@@ -673,8 +673,8 @@ contains
   subroutine DataInitialize(gcomp, rc)
 
     use wav_import_export, only : state_getfldptr, state_fldchk
-    use wav_import_export, only : wav_coupling_to_cice, wav_coupling_to_mom
     use wav_import_export, only : calcRoughl 
+    use wav_shr_mod      , only : wav_coupling_to_cice, wav_coupling_to_mom
     use w3gdatmd         , only : nx, ny
 
     ! input/output variables
@@ -1194,16 +1194,17 @@ contains
 #ifdef CESMCOUPLED
   subroutine waveinit_cesm(gcomp, ntrace, mpi_comm, dtime_sync, rc)
 
-    ! Initialize ww3 for cesm
+    ! Initialize ww3 for cesm (called from InitializeRealize)
 
-    use w3gdatmd          , only : dtcfl, dtcfli, dtmax, dtmin
-    use w3odatmd          , only : nogrp, ngrpp, noge, iostyp, idout, nds
-    use w3idatmd          , only : inflags1, inflags2
-    use w3wdatmd          , only : time
-    use w3initmd          , only : w3init
-    use wav_import_export , only : wav_coupling_to_cice, wav_coupling_to_mom
-    use wav_shr_mod       , only : casename, initfile, rstwr, histwr, outfreq
-    use wav_shr_mod       , only : inst_index, inst_name, inst_suffix
+    use w3gdatmd     , only : dtcfl, dtcfli, dtmax, dtmin
+    use w3initmd     , only : w3init
+    use w3odatmd     , only : nds
+    use w3initmd     , only : w3init
+    use wav_shr_mod  , only : casename, initfile, outfreq
+    use wav_shr_mod  , only : inst_index, inst_name, inst_suffix
+    use wav_shel_inp , only : set_shel_inp
+    use wav_shel_inp , only : npts, odat, iprt, x, y, pnames, prtfrm
+    use wav_shel_inp , only : flgrd, flgd, flgr2, flg2
 
     ! input/output variables
     type(ESMF_GridComp)   :: gcomp
@@ -1213,24 +1214,12 @@ contains
     integer , intent(out) :: rc
 
     ! local variables
-    integer                        :: odat(35)
-    integer                        :: i,j 
     integer                        :: ierr 
-    integer                        :: unitn               ! namelist unit number
-    integer                        :: J0                  ! CMB
-    integer                        :: npts, iprt(6)
-    real, allocatable              :: x(:), y(:)
-    character(len=10), allocatable :: pnames(:)
-    logical                        :: flt
-    logical                        :: prtfrm
-    logical                        :: flgrd(nogrp,ngrpp)  !flags for gridded output
-    logical                        :: flgrd2(nogrp,ngrpp) !flags for coupling output
-    logical                        :: flg(nogrp)          !flags for whole group?, probably eliminated now
-    logical                        :: flg2(nogrp)         !flags for whole group?
+    integer                        :: unitn  ! namelist unit number
     integer                        :: shrlogunit
     logical                        :: isPresent, isSet
     character(len=CL)              :: cvalue
-    character(len=*), parameter    :: subname = '(wav_comp_nuopc:InitializeRealize_cesm)'
+    character(len=*), parameter    :: subname = '(wavinit_cesm)'
     ! -------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1259,240 +1248,6 @@ contains
        write(stdout,*) trim(subname),' inst_index  = ',inst_index
        write(stdout,*) trim(subname),' inst_suffix = ',trim(inst_suffix)
     endif
-
-    !--------------------------------------------------------------------
-    ! Define input fields inflags1 and inflags2 settings
-    !--------------------------------------------------------------------
-
-    !  fllev   inflags1(1)  flag for water level input.
-    !  flcur   inflags1(2)  flag for current input.
-    !  flwind  inflags1(3)  flag for wind input.
-    !  flice   inflags1(4)  flag for ice input (ice fraction)
-    !  flhml   inflags1(5)  flag for mixed layer depth input. ql, 150525 hk
-
-    !  inflags1 array consolidating the above four flags, as well asfour additional data flags.
-    !  inflags2 like inflags1 but does *not* get changed when model reads last record of ice.ww3
-
-    ! flags for passing variables from coupler to ww3, lev, curr, wind, ice and mixing layer depth on
-    inflags1(:) = .false.
-    inflags1(1:5) = .true.
-
-    if (wav_coupling_to_cice) then
-       inflags1(-7) = .true. ! LR ice thickness
-       inflags1(-3) = .true. ! LR ice floe size
-
-       ! LR - I don't understand the difference between inflags1 and inflags2
-       ! I am setting them both here to get thickness and floe size import to waves
-       ! and to turn on attenuation
-       inflags2(-7) = .true. ! LR thickness
-       inflags2(-3) = .true. ! LR floe size
-
-       inflags2( 4) = .true. ! LR ????
-    end if
-
-    !--------------------------------------------------------------------
-    ! Define output type and fields
-    !--------------------------------------------------------------------
-
-    iostyp = 1        ! gridded field
-    if (root_task) then
-       write(stdout,'(a)') '  Output requests : '
-       write(stdout,'(a)')'--------------------------------------------------'
-       write(stdout,'(a)')' no dedicated output process on any file system '
-    end if
-
-    ! Actually will need a new restart flag - since all of the ODAT
-    ! should be set to 0 - since they are initializated in w3initmd
-    ! ODAT    I.A.   I   Output data, five parameters per output type
-    !                          1 YYYMMDD for first output.
-    !                          2 HHMMSS for first output.
-    !                          3 Output interval in seconds.
-    !                          4 YYYMMDD for last output.
-    !                          5 HHMMSS for last output.
-    !                     1-5  Data for OTYPE = 1; gridded fields.
-    !                     6-10 Id.  for OTYPE = 2; point output.
-    !                    11-15 Id.  for OTYPE = 3; track point output.
-    !                    16-20 Id.  for OTYPE = 4; restart files. (CMB I do not think this is right)
-    !                    21-25 Id.  for OTYPE = 5; boundary data.
-    !                    26-30 Id.  for OTYPE = 6; ?
-    !                    31-35 Id.  for OTYPE = 7; coupled fields
-    ! FLGRD   L.A.   I   Flags for gridded output.
-    ! NPT     Int.   I   Number of output points
-    ! X/YPT   R.A.   I   Coordinates of output points.
-    ! PNAMES  C.A.   I   Output point names.
-
-    ! CMB changed odat so all 35 values are initialized here
-    do j=1, 7
-       odat(5*(j-1)+3) = 0
-    end do
-
-    ! Hardwire gridded output for now
-    ! first output time stamp is now read from file
-    ! QL, 150525, 1-5 for history files, 16-20 for restart files
-    !     150629, restart output interval is set to the total time of run
-    !     150823, restart is taken over by rstwr
-    !     160601, output interval is set to coupling interval, so that
-    !             variables calculated in W3IOGO could be updated at
-    !             every coupling interval
-    ! CMB changed odat so all 35 values are set, only permitting one frequency controlled by histwr
-    do J =1,7
-       J0 = (j-1)*5
-       odat(J0+1) = time(1)     ! YYYYMMDD for first output
-       odat(J0+2) = time(2)     ! HHMMSS for first output
-       odat(J0+3) = dtime_sync  ! output interval in sec ! changed by Adrean
-       odat(J0+4) = 99990101    ! YYYYMMDD for last output
-       odat(J0+5) = 0           ! HHMMSS for last output
-    end do
-
-    ! output index is now a in a 2D array
-    ! IDOUT(NOGRP,NGRPP)
-    !   NOGRP = number of output field groups
-    !   NGRPP = Max num of parameters per output
-    !   NOGE(NOGRP) = number of output group elements
-
-    flgrd(:,:)  = .false.   ! gridded fields
-    flgrd2(:,:) = .false.   ! coupled fields, w3init w3iog are not ready to deal with these yet
-    ! 1) Forcing fields
-    flgrd( 1, 1)  = .false. ! Water depth
-    flgrd( 1, 2)  = .false. ! Current vel.
-    flgrd( 1, 3)  = .true.  ! Wind speed
-    flgrd( 1, 4)  = .false. ! Air-sea temp. dif.
-    flgrd( 1, 5)  = .false. ! Water level
-    flgrd( 1, 6)  = .true.  ! Ice concentration     !MV - this was changed by CC - do we want this?
-    flgrd( 1, 7)  = .false. ! Iceberg damp coeffic
-
-    ! 2) Standard mean wave parameters
-    flgrd( 2, 1)  = .true.  ! Wave height
-    flgrd( 2, 2)  = .false. ! Mean wave length
-    flgrd( 2, 3)  = .true.  ! Mean wave period(+2)
-    flgrd( 2, 4)  = .true.  ! Mean wave period(-1)
-    flgrd( 2, 5)  = .true.  ! Mean wave period(+1)
-    flgrd( 2, 6)  = .true.  ! Peak frequency        !MV - changed by CC - do we want this?
-    flgrd( 2, 7)  = .true.  ! Mean wave dir. a1b1   !MV - changed by CC - do we want this?
-    flgrd( 2, 8)  = .false. ! Mean dir. spr. a1b1
-    flgrd( 2, 9)  = .false. ! Peak direction
-    flgrd( 2, 10) = .false. ! Infragravity height
-    flgrd( 2, 11) = .false. ! Space-Time Max E
-    flgrd( 2, 12) = .false. ! Space-Time Max Std
-    flgrd( 2, 13) = .false. ! Space-Time Hmax
-    flgrd( 2, 14) = .false. ! Spc-Time Hmax^crest
-    flgrd( 2, 15) = .false. ! STD Space-Time Hmax
-    flgrd( 2, 16) = .false. ! STD ST Hmax^crest
-    flgrd( 2, 17) = .false. ! Dominant wave bT
-
-    ! 3) Frequency-dependent standard parameters
-    !HK These were not set to true in the previous CESM version
-    !HK whether the 1D Freq. Spectrum gets allocated is decided
-    !HK in the grid_inp file
-    !HK ~/ww3_toolbox/grids/grid_inp/ww3_grid.inp.ww3a
-    !HK namelist section:   &OUTS E3D = 1 /
-    flgrd( 3, 1)  = .true.  !1D Freq. Spectrum  !HK EF
-    flgrd( 3, 2)  = .false. !Mean wave dir. a1b1
-    flgrd( 3, 3)  = .false. !Mean dir. spr. a1b1
-    flgrd( 3, 4)  = .false. !Mean wave dir. a2b2
-    flgrd( 3, 5)  = .false. !Mean dir. spr. a2b2
-    flgrd( 3, 6)  = .false. !Wavenumber array   '
-
-    ! 4) Spectral Partitions parameters
-    flgrd( 4, 1)  =  .false. !Part. wave height   '
-    flgrd( 4, 2)  =  .false. !Part. peak period   '
-    flgrd( 4, 3)  =  .false. !Part. peak wave len.'
-    flgrd( 4, 4)  =  .false. !Part. mean direction'
-    flgrd( 4, 5)  =  .false. !Part. dir. spread   '
-    flgrd( 4, 6)  =  .false. !Part. wind sea frac.'
-    flgrd( 4, 7)  =  .false. !Part. peak direction'
-    flgrd( 4, 8)  =  .false. !Part. peakedness    '
-    flgrd( 4, 9)  =  .false. !Part. peak enh. fac.'
-    flgrd( 4,10)  =  .false. !Part. gaussian width'
-    flgrd( 4,11)  =  .false. !Part. spectral width'
-    flgrd( 4,12)  =  .false. !Part. mean per. (-1)'
-    flgrd( 4,13)  =  .false. !Part. mean per. (+1)'
-    flgrd( 4,14)  =  .false. !Part. mean per. (+2)'
-    flgrd( 4,15)  =  .false. !Part. peak density  '
-    flgrd( 4,16)  =  .false. !Total wind sea frac.'
-    flgrd( 4,17)  =  .false. !Number of partitions'
-
-    ! 5) Atmosphere-waves layer
-    flgrd( 5, 1)  = .false. !Friction velocity   '
-    flgrd( 5, 2)  = .false. !Charnock parameter  '
-    flgrd( 5, 3)  = .false. !Energy flux         '
-    flgrd( 5, 4)  = .false. !Wind-wave enrgy flux'
-    flgrd( 5, 5)  = .false. !Wind-wave net mom. f'
-    flgrd( 5, 6)  = .false. !Wind-wave neg.mom.f.'
-    flgrd( 5, 7)  = .false. !Whitecap coverage   '
-    flgrd( 5, 8)  = .false. !Whitecap mean thick.'
-    flgrd( 5, 9)  = .false. !Mean breaking height'
-    flgrd( 5,10)  = .false. !Dominant break prob '
-    flgrd( 5,11)  = .false. !Breaker passage rate'
-
-    ! 6) Wave-ocean layer
-    flgrd( 6, 1)  = .false. !'Radiation stresses  '
-    flgrd( 6, 2)  = .false. !'Wave-ocean mom. flux'
-    flgrd( 6, 3)  = .false. !'wave ind p Bern Head'
-    flgrd( 6, 4)  = .false. !'Wave-ocean TKE  flux'
-    flgrd( 6, 5)  = .false. !'Stokes transport    '
-    flgrd( 6, 6)  = .true. !'Stokes drift at z=0 '
-    flgrd( 6, 7)  = .false. !'2nd order pressure  '
-    flgrd( 6, 8)  = .false. !'Stokes drft spectrum'
-    flgrd( 6, 9)  = .false. !'2nd ord press spectr'
-    flgrd( 6,10)  = .false. !'Wave-ice mom. flux  '
-    flgrd( 6,11)  = .false. !'Wave-ice energy flux'
-    flgrd( 6,12)  = .false. !'Split Surface Stokes'
-    !aa
-    flgrd( 6,13)  = .true. ! Turbulent Langmuir number (La_t)
-
-    ! 7) Wave-bottom layer
-    flgrd( 7, 1)  = .false. !'Bottom rms ampl.    '
-    flgrd( 7, 2)  = .false. !'Bottom rms velocity '
-    flgrd( 7, 3)  = .false. !'Bedform parameters  '
-    flgrd( 7, 4)  = .false. !'Energy diss. in WBBL'
-    flgrd( 7, 5)  = .false. !'Moment. loss in WBBL'
-
-    ! 8) Spectrum parameters
-    flgrd( 8, 1)  = .false. !'Mean square slopes  '
-    flgrd( 8, 2)  = .false. !'Phillips tail const'
-    flgrd( 8, 3)  = .false. !'Slope direction     '
-    flgrd( 8, 4)  = .false. !'Tail slope direction'
-    flgrd( 8, 5)  = .false. !'Goda peakedness parm'
-
-    ! 9) Numerical diagnostics
-    flgrd( 9, 1)  = .false. !'Avg. time step.     '
-    flgrd( 9, 2)  = .false. !'Cut-off freq.       '
-    flgrd( 9, 3)  = .false. !'Maximum spatial CFL '
-    flgrd( 9, 4)  = .false. !'Maximum angular CFL '
-    flgrd( 9, 5)  = .false. !'Maximum k advect CFL'
-
-    ! 10) is user defined
-
-    !CMB document which fields to be output to first hist file in wav.log
-    if ( root_task ) then
-       flt = .true.
-       do i=1, nogrp
-          do j=1, noge(i)
-             if ( flgrd(i,j) ) then
-                if ( flt ) then
-                   write (stdout,'(a)') '            Fields   : '//trim(idout(i,j))
-                   flt = .false.
-                else
-                   write (stdout,'(a)')'                       '//trim(idout(i,j))
-                end if
-             end if
-          end do
-       end do
-       if ( flt ) then
-          write (stdout,'(a)') '            Fields   : '//'no fields defined'
-       end if
-    end if
-
-    !--------------------------------------------------------------------
-    ! Wave model initializations
-    !--------------------------------------------------------------------
-
-    ! Notes on ww3 initialization:
-    ! ww3 read initialization occurs in w3iors (which is called by initmd)
-    ! For a startup (including hybrid) or branch run the initial datafile is
-    ! set in namelist input 'initfile'
-    ! For a continue run, the initfile value is created from the time(1:2) array set below
 
     ! Read namelist (set initfile in wav_shr_mod)
     if ( root_task ) then
@@ -1536,21 +1291,19 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    ! Read in input data and initialize the model
-    ! w3init calls w3iors which:
-    ! - reads either the initfile if the run is startup or branch
-    ! - constructs the filename from the casename variable and the time(:) array
-    !   which is set above
+    ! Determine module variables in wav_shel_inp that are used for call to w3init
+    call set_shel_inp(dtime_sync)
 
-    ! npts, pnames are fpr point output
-    npts = 0
-    allocate ( x(1), y(1), pnames(1) )
-    pnames(1) = ' '
-
-    ! flgrd2 is flags for coupling output, not ready yet so keep .false.
+    ! Read in initial/restart data and initialize the model
+    ! ww3 read initialization occurs in w3iors (which is called by initmd in module w3initmd)
+    ! ww3 always starts up from a 'restart' file type
+    ! For a startup (including hybrid) or branch run the restart file is obtained from 'initfile'
+    ! For a continue run, the restart filename upon read is created from the time(1:2) array 
+    ! flgr2 is flags for coupling output, not ready yet so keep .false.
     ! 1 is model number
-    ! IsMulti does not appear to be used, setting to .true.
-    call w3init ( 1, .true., 'ww3', nds, ntrace, odat, flgrd, flgrd2, flg, flg2, &
+    ! IsMulti does not appear to be used, setting to .false.
+
+    call w3init ( 1, .false., 'ww3', nds, ntrace, odat, flgrd, flgr2, flgd, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 
   end subroutine waveinit_cesm
@@ -1558,18 +1311,18 @@ contains
 
 !===============================================================================
 #ifndef CESMCOUPLED
-  subroutine waveinit_ufs(gcomp, ntrace, mpi_comm, rc)
+  subroutine waveinit_ufs( gcomp, ntrace, mpi_comm, rc)
 
-    ! Initialize ww3 for ufs 
+    ! Initialize ww3 for ufs (called from InitializeRealize)
 
     use w3odatmd     , only : nds, fnmpre
     use w3adatmd     , only : charn,u10  ! TODO: remove (used for debugging)
     use w3wdatmd     , only : ust        ! TODO: remove (used for debugging)
     use w3gdatmd     , only : xgrd, ygrd ! TODO: remove (used for debugging)
+    use w3initmd     , only : w3init
+    use wav_shel_inp , only : read_shel_inp
     use wav_shel_inp , only : npts, odat, iprt, x, y, pnames, prtfrm
     use wav_shel_inp , only : flgrd, flgd, flgr2, flg2
-    use wav_shel_inp , only : read_shel_inp
-    use w3initmd     , only : w3init
 
     ! input/output variables
     type(ESMF_GridComp)  :: gcomp
@@ -1579,7 +1332,7 @@ contains
 
     ! local variables
     integer :: lb,ub
-    character(len=*), parameter :: subname = '(wav_comp_nuopc:InitializeRealize_ufs)'
+    character(len=*), parameter :: subname = '(wavinit_ufs)'
     ! -------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1588,7 +1341,7 @@ contains
     call ESMF_LogWrite(trim(subname)//' call read_shel_inp', ESMF_LOGMSG_INFO)
     call read_shel_inp(mpi_comm)
 
-    call ESMF_LogWrite(trim(subname)//' cal w3init', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' call w3init', ESMF_LOGMSG_INFO)
     call w3init ( 1, .false., 'ww3', nds, ntrace, odat, flgrd, flgr2, flgd, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 

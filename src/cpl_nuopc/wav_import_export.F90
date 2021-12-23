@@ -7,6 +7,7 @@ module wav_import_export
   use wav_shr_mod  , only : ymd2date
   use wav_shr_mod  , only : chkerr
   use wav_shr_mod  , only : state_diagnose, state_reset
+  use wav_shr_mod  , only : wav_coupling_to_cice, wav_coupling_to_mom
   use constants    , only : grav, tpi, dwat
 
   implicit none
@@ -38,10 +39,6 @@ module wav_import_export
   integer     ,parameter :: dbug_flag = 0 ! internal debug level
   character(*),parameter :: u_FILE_u = &
        __FILE__
-
-  ! TODO: generalize this
-  logical, public :: wav_coupling_to_cice = .false.
-  logical, public :: wav_coupling_to_mom  = .false.
 
   real(r8), parameter :: zero  = 0.0_r8
 

@@ -919,48 +919,47 @@
         ! local variables
         integer :: yy,mm,dd,hh,mn,ss,totsec
         logical :: exists
+        logical :: lread
         !----------------------------------------------
 
-        yy =  time(1)/10000
-        mm = (time(1)-yy*10000)/100
-        dd = (time(1)-yy*10000-mm*100)
-        hh = time(2)/10000
-        mn = (time(2)-hh*10000)/100
-        ss = (time(2)-hh*10000-mn*100)
-        totsec = hh*3600+mn*60+ss
+        ! create local lread logical for clarity
+        lread = (lwrite == .false.)
 
-        if (len_trim(inst_suffix) > 0) then
-           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
-                trim(casename)//&
-                &'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
+        ! determine restart filename
+        if (lread .and. runtype /= 'continue') then
+           fname = initfile
         else
-           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
-                trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
-        endif
+           yy =  time(1)/10000
+           mm = (time(1)-yy*10000)/100
+           dd = (time(1)-yy*10000-mm*100)
+           hh = time(2)/10000
+           mn = (time(2)-hh*10000)/100
+           ss = (time(2)-hh*10000-mn*100)
+           totsec = hh*3600+mn*60+ss
 
-        if (len_trim(inst_suffix) > 0) then
-           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
-                trim(casename)//&
-                &'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
-        else
-           write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
-                trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
-        endif
+           if (len_trim(inst_suffix) > 0) then
+              write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                   trim(casename)//'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
+           else
+              write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                   trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
+           endif
+        end if
 
-        ! if read
-        if (lwrite) then
-           if ( root_task ) then
-              write (stdout,'(a)') ' writing restart file '//trim(fname)
-           end if
-        else
-           if (runtype /= 'continue') fname = initfile
+        ! check that if read the file exists
+        if (lread) then
            inquire( file=fname, exist=exists)
            if (.not. exists ) then
               CALL EXTCDE (60, MSG="required initial/restart file " // trim(fname) // "does not exist")
+           end if
+        end if
+
+        ! write out filename to stdout
+        if ( root_task ) then
+           if (lwrite) then
+              write (stdout,'(a)') ' writing restart file '//trim(fname)
            else
-              if ( root_task) then
-                 write (stdout,'(a)') ' reading initial/restart file '//trim(fname)
-              end if
+              write (stdout,'(a)') ' reading initial/restart file '//trim(fname)
            end if
         end if
 
