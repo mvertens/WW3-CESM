@@ -311,9 +311,7 @@
       INTEGER, PARAMETER      :: NGRPP = 20
       INTEGER, PARAMETER      :: DIMP = 15
       INTEGER                 :: NOGE(NOGRP)
-#ifdef CESMCOUPLED
-      INTEGER                 :: NOTYPE = 7 !this is nomally set in w3_shel, CMB made 7
-#endif
+      INTEGER                 :: NOTYPE
       INTEGER, PARAMETER      :: NOEXTR=  2
       CHARACTER(LEN=20)       :: IDOUT(NOGRP,NGRPP)
       CHARACTER(LEN=80)       :: FNMPRE = './'
