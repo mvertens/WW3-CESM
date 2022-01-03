@@ -218,7 +218,6 @@ contains
     character(ESMF_MAXSTR), allocatable :: lfieldnamelist(:)
     real(R8), pointer                   :: fldptr1(:)
     real(R8), pointer                   :: fldptr2(:,:)
-    real(R8), parameter                 :: czero = 0.0_R8
     character(len=*), parameter         :: subname = ' (wav_shr_mod:state_reset) '
     ! ----------------------------------------------
 
@@ -230,16 +229,11 @@ contains
     call ESMF_StateGet(State, itemNameList=lfieldnamelist, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-
-!print*, 'HK inside state_reset'
-
     do n = 1, fieldCount
        call ESMF_StateGet(State, itemName=trim(lfieldnamelist(n)), field=lfield, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
        call field_getfldptr(lfield, fldptr1=fldptr1, fldptr2=fldptr2, rank=lrank, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
        if (lrank == 0) then
           ! no local data
        elseif (lrank == 1) then

@@ -793,10 +793,6 @@
 !/
 !/ ------------------------------------------------------------------- /
 !/
-#ifdef CESMCOUPLED
-      ! This should not be called - moved to nuopc_cap
-      print*, 'ALERT inside W3FLGRDFLAG'
-#endif
 !
 ! 1.  Initialize flags -------------------------------------- *
 !
@@ -1172,9 +1168,6 @@
       USE CONSTANTS
       USE W3GDATMD
       USE W3WDATMD, ONLY: UST, FPIS
-#ifdef CESMCOUPLED
-      USE W3WDATMD, ONLY: ASF
-#endif
       USE W3ADATMD, ONLY: CG, WN, DW
       USE W3ADATMD, ONLY: HS, WLM, T02, T0M1, T01, FP0,               &
                           THM, THS, THP0
@@ -1208,6 +1201,7 @@
       USE W3ADATMD, ONLY: LAMULT, USSXH, USSYH, LANGMT, LAPROJ, &
                           ALPHAL, ALPHALS, LASL, UD, LASLPJ
       USE W3IDATMD, ONLY: HML
+      USE W3WDATMD, ONLY: ASF
 #endif
 !
       USE W3PARALL, ONLY : INIT_GET_ISEA
@@ -1501,7 +1495,6 @@
             END IF
 
 #ifdef CESMCOUPLED
-!
 ! Get surface layer depth
           IX    = MAPSF(ISEA,1)
           IY    = MAPSF(ISEA,2)
@@ -1546,22 +1539,22 @@
             BHD(JSEA) = BHD(JSEA) +                             &
                 GRAV*WN(IK,ISEA) * EBD(IK,JSEA) / (SINH(2.*KD))
 #ifdef CESMCOUPLED
-              ! Surface Stokes Drift
-              ETUSSX(JSEA)  = ETUSSX(JSEA) + ABX(JSEA)*FACTOR*SIG(IK) &
-                   *WN(IK,ISEA)*COSH(2*WN(IK,ISEA)*DW(ISEA))          &
-                   /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
-              ETUSSY(JSEA)  = ETUSSY(JSEA) + ABY(JSEA)*FACTOR*SIG(IK) &
-                   *WN(IK,ISEA)*COSH(2*WN(IK,ISEA)*DW(ISEA))          &
-                   /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
-              ! Depth averaged Stokes Drift
-              ETUSSXH(JSEA)  = ETUSSXH(JSEA) + ABX(JSEA)*FACTOR*SIG(IK) &
-                   *(1.-EXP(-2.*WN(IK,ISEA)*HSL))/2./HSL                &
-                   *COSH(2*WN(IK,ISEA)*DW(ISEA))                        &
-                   /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
-              ETUSSYH(JSEA)  = ETUSSYH(JSEA) + ABY(JSEA)*FACTOR*SIG(IK) &
-                   *(1.-EXP(-2.*WN(IK,ISEA)*HSL))/2./HSL                &
-                   *COSH(2*WN(IK,ISEA)*DW(ISEA))                        &
-                   /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
+            ! Surface Stokes Drift
+            ETUSSX(JSEA)  = ETUSSX(JSEA) + ABX(JSEA)*FACTOR*SIG(IK) &
+                 *WN(IK,ISEA)*COSH(2*WN(IK,ISEA)*DW(ISEA))          &
+                 /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
+            ETUSSY(JSEA)  = ETUSSY(JSEA) + ABY(JSEA)*FACTOR*SIG(IK) &
+                 *WN(IK,ISEA)*COSH(2*WN(IK,ISEA)*DW(ISEA))          &
+                 /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
+            ! Depth averaged Stokes Drift
+            ETUSSXH(JSEA)  = ETUSSXH(JSEA) + ABX(JSEA)*FACTOR*SIG(IK) &
+                 *(1.-EXP(-2.*WN(IK,ISEA)*HSL))/2./HSL                &
+                 *COSH(2*WN(IK,ISEA)*DW(ISEA))                        &
+                 /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
+            ETUSSYH(JSEA)  = ETUSSYH(JSEA) + ABY(JSEA)*FACTOR*SIG(IK) &
+                 *(1.-EXP(-2.*WN(IK,ISEA)*HSL))/2./HSL                &
+                 *COSH(2*WN(IK,ISEA)*DW(ISEA))                        &
+                 /(SINH(WN(IK,ISEA)*DW(ISEA)))**2
 #endif
           ELSE
             USSCO=FACTOR*SIG(IK)*2.*WN(IK,ISEA)
@@ -1840,9 +1833,9 @@
       DO JSEA=1, NSEAL
         CALL INIT_GET_ISEA(ISEA, JSEA)
 #ifdef CESMCOUPLED
-        IX    = MAPSF(ISEA,1)
-        IY    = MAPSF(ISEA,2)
-        HSL   = HML(IX,IY)/5.     ! depth over which SD is averaged
+        IX = MAPSF(ISEA,1)
+        IY = MAPSF(ISEA,2)
+        HS = HML(IX,IY)/5.     ! depth over which SD is averaged
 #endif
 !
 ! 3.a Directional mss parameters

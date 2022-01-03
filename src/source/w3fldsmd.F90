@@ -967,9 +967,6 @@
       FLST   = IDFLD.EQ.'WNS'
  
       IF ( .NOT. PRESENT(FLAGSC) ) THEN
-#ifdef CESMCOUPLED
-        ! default is not from coupler
-#endif
         FLCOUPL=FLAGSC_DEFAULT 
       ELSE
         FLCOUPL=FLAGSC

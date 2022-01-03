@@ -40,18 +40,10 @@ module wav_import_export
   type (fld_list_type)   :: fldsToWav(fldsMax)
   type (fld_list_type)   :: fldsFrWav(fldsMax)
 
+  real(r8), parameter    :: zero  = 0.0_r8
+
   character(*),parameter :: u_FILE_u = &
        __FILE__
-
-#ifdef CESMCOUPLED
-  integer, parameter :: prec = r8
-  integer, parameter :: iprec = 8
-#else
-  integer, parameter :: prec = r4
-  integer, parameter :: iprec = 4
-#endif
-  real(prec), parameter   :: zero  = 0.0_prec
-  real(r4)  , allocatable :: import_mask(:)       ! mask for valid import data
 
 !===============================================================================
 contains
@@ -92,7 +84,6 @@ contains
     call fldlist_add(fldsToWav_num, fldsToWav, 'Sa_u10m'    )
     call fldlist_add(fldsToWav_num, fldsToWav, 'Sa_v10m'    )
 #endif
-
     if (wav_coupling_to_cice) then
        call fldlist_add(fldsToWav_num, fldsToWav, 'Si_thick'   )
        call fldlist_add(fldsToWav_num, fldsToWav, 'Si_floediam')
@@ -146,7 +137,7 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end do
 
-    if (dbug_flag > 5)call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine advertise_fields
 
@@ -161,10 +152,9 @@ contains
     integer          , intent(out) :: rc
 
     ! local variables
-    type(ESMF_State)     :: importState
-    type(ESMF_State)     :: exportState
+    type(ESMF_State) :: importState
+    type(ESMF_State) :: exportState
     character(len=*), parameter :: subname='(wav_import_export:realize_fields)'
-    integer :: ii
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -234,11 +224,9 @@ contains
     type(ESMF_VM)           :: vm
     type(ESMF_Clock)        :: clock
     integer                 :: n, ix, iy
-    real(r4)                :: wxdata(nx*ny)
-    real(r4)                :: wydata(nx*ny)
-    real(prec)              :: data_global(nx*ny)
-    real(prec), allocatable :: data_global2(:)
-    real(prec)              :: def_value
+    real(r4)                :: data_global(nx*ny)
+    real(r4), allocatable   :: data_global2(:)
+    real(r4)                :: def_value
 #ifdef CESMCOUPLED
     character(len=10)       :: uwnd = 'Sa_u'
     character(len=10)       :: vwnd = 'Sa_v'
@@ -246,6 +234,9 @@ contains
     character(len=10)       :: uwnd = 'Sa_u10m'
     character(len=10)       :: vwnd = 'Sa_v10m'
 #endif
+    real(r4), allocatable   :: wxdata(:)      ! only needed if merge_import
+    real(r4), allocatable   :: wydata(:)      ! only needed if merge_import
+    real(r4), allocatable   :: import_mask(:) ! mask for valid import data
     character(len=CL)       :: msgString
     character(len=*), parameter :: subname='(wav_import_export:import_fields)'
     !---------------------------------------------------------------------------
@@ -262,16 +253,6 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    ! set mask using u-wind field if merge_import; all import fields
-    ! will have same missing overlap region
-    if (.not.allocated(import_mask)) then
-       allocate(import_mask(nx*ny))
-    end if
-    if (merge_import) then
-       call set_importmask(importState, clock, trim(uwnd), import_mask, vm, rc)
-       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    end if
-
     ! input fields associated with W3FLDG calls in ww3_shel.ftn
     ! these arrays are global, just fill the local cells for use later
     ! fill both the lower (0) and upper (N) bound data with the same values
@@ -279,7 +260,7 @@ contains
     ! set time for input data to time0 and timen (shouldn't matter)
 
     ! note that INFLAGS(1-5) is true for CESM, for UWM INFLAGS(2:4) is true
-    def_value = 0.0_prec
+    def_value = 0.0_r4
 
     ! ---------------
     ! INFLAGS1(1)
@@ -340,21 +321,28 @@ contains
        TWN  = timen
 
        if (merge_import) then
+          ! set mask using u-wind field if merge_import; all import fields
+          ! will have same missing overlap region
+          allocate(import_mask(nx*ny))
+          call set_importmask(importState, clock, trim(uwnd), import_mask, vm, rc)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
+          allocate(wxdata(nx*ny))
+          allocate(wydata(nx*ny))
           call readfromfile('WND', wxdata, wydata, time0, timen, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
           if (dbug_flag > 10) then
              call check_globaldata(gcomp, 'wxdata', wxdata, rc)
              if (ChkErr(rc,__LINE__,u_FILE_u)) return
              call check_globaldata(gcomp, 'wydata', wydata, rc)
              if (ChkErr(rc,__LINE__,u_FILE_u)) return
+             call check_globaldata(gcomp, 'import_mask', import_mask, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
           end if
-       else
-          wxdata = def_value
-          wydata = def_value
-          import_mask = 1.0_r4
        end if
 
-       WX0(:,:) = def_value   ! atm u wind
+       ! atm u wind
+       WX0(:,:) = def_value   
        WXN(:,:) = def_value
        if (state_fldchk(importState, trim(uwnd))) then
           call SetGlobalInput(importState, trim(uwnd), vm, data_global, rc)
@@ -363,19 +351,23 @@ contains
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                WX0(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
-                WXN(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
+                if (merge_import) then
+                   WX0(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
+                   WXN(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
+                else
+                   WX0(ix,iy) = data_global(n)
+                   WXN(ix,iy) = data_global(n)
+                end if
              end do
           end do
           if (dbug_flag > 10) then
-             call check_globaldata(gcomp, 'import_mask', import_mask, rc)
-             if (ChkErr(rc,__LINE__,u_FILE_u)) return
              call check_globaldata(gcomp, 'wx0', wx0, rc)
              if (ChkErr(rc,__LINE__,u_FILE_u)) return
           end if
        end if
 
-       WY0(:,:) = def_value   ! atm v wind
+       ! atm v wind
+       WY0(:,:) = def_value   
        WYN(:,:) = def_value
        if (state_fldchk(importState, trim(vwnd))) then
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -385,8 +377,13 @@ contains
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                WY0(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
-                WYN(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
+                if (merge_import) then
+                   WY0(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
+                   WYN(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
+                else
+                   WY0(ix,iy)  = data_global(n)
+                   WYN(ix,iy)  = data_global(n)
+                end if
              end do
           end do
           if (dbug_flag > 10) then
@@ -395,7 +392,8 @@ contains
           end if
        end if
 
-       DT0(:,:) = def_value   ! air temp - ocn temp
+       ! air temp - ocn temp
+       DT0(:,:) = def_value   
        DTN(:,:) = def_value
        if ((state_fldchk(importState, 'So_t')) .and. (state_fldchk(importState, 'Sa_tbot'))) then
           allocate(data_global2(nx*ny))
@@ -413,6 +411,14 @@ contains
           end do
           deallocate(data_global2)
        end if
+
+       ! Deallocate memory for merge_import
+       if (merge_import) then
+          deallocate(import_mask)
+          deallocate(wxdata)
+          deallocate(wydata)
+       end if
+
     end if
 
     ! ---------------
@@ -1427,12 +1433,12 @@ contains
     type(ESMF_State) , intent(in)  :: importState
     character(len=*) , intent(in)  :: fldname
     type(ESMF_VM)    , intent(in)  :: vm
-    real(prec)       , intent(out) :: global_output(nx*ny)
+    real(r4)         , intent(out) :: global_output(nx*ny)
     integer          , intent(out) :: rc
 
     ! local variables
     integer           :: n, isea, ix, iy
-    real(prec)        :: global_input(nx*ny)
+    real(r4)          :: global_input(nx*ny)
     real(r8), pointer :: dataptr(:)
     character(len=*), parameter :: subname = '(wav_import_export:setGlobalInput)'
     !---------------------------------------------------------------------------
@@ -1442,13 +1448,13 @@ contains
 
     call state_getfldptr(importState, trim(fldname), fldptr1d=dataptr, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    global_output(:) = 0._prec
-    global_input(:) = 0._prec
+    global_output(:) = 0._r4
+    global_input(:) = 0._r4
     do n = 1, nseal
        isea = iaproc + (n-1)*naproc
        ix = mapsf(isea,1)
        iy = mapsf(isea,2)
-       global_input(ix + (iy-1)*nx) = real(dataptr(n),iprec)
+       global_input(ix + (iy-1)*nx) = real(dataptr(n),4)
     end do
     call ESMF_VMAllReduce(vm, sendData=global_input, recvData=global_output, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1543,31 +1549,28 @@ contains
     use w3odatmd, only: naproc, iaproc
 
     ! input/output variables
-    type(ESMF_GridComp)  :: gcomp
-
-    character(len=*) , intent(in)  :: fldname
-    real(r4)         , intent(in)  :: global_data(nx*ny)
-    integer          , intent(out) :: rc
+    type(ESMF_GridComp) , intent(inout) :: gcomp
+    character(len=*)    , intent(in)    :: fldname
+    real(r4)            , intent(in)    :: global_data(nx*ny)
+    integer             , intent(out)   :: rc
 
     ! local variables
-    type(ESMF_Clock)   :: clock
-    type(ESMF_State)   :: importState
-    type(ESMF_Time)    :: currtime, nexttime
-    type(ESMF_Field)   :: lfield
-    type(ESMF_Field)   :: newfield
-    type(ESMF_MeshLoc) :: meshloc
-    type(ESMF_Mesh)    :: lmesh
-
-    character(len=CS) :: timestr
+    type(ESMF_Clock)                :: clock
+    type(ESMF_State)                :: importState
+    type(ESMF_Time)                 :: currtime, nexttime
+    type(ESMF_Field)                :: lfield
+    type(ESMF_Field)                :: newfield
+    type(ESMF_MeshLoc)              :: meshloc
+    type(ESMF_Mesh)                 :: lmesh
+    character(len=CS)               :: timestr
     character(ESMF_MAXSTR) ,pointer :: lfieldnamelist(:)
-    integer           :: fieldCount
-    integer           :: lrank
-    integer           :: yr,mon,day,sec    ! time units
-    integer           :: n, nn, isea, ix, iy
-    real(r8), pointer :: dataptr1d(:)
-    real(r8)          :: fillValue = 9.99e20
+    integer                         :: fieldCount
+    integer                         :: lrank
+    integer                         :: yr,mon,day,sec    ! time units
+    integer                         :: n, nn, isea, ix, iy
+    real(r8), pointer               :: dataptr1d(:)
+    real(r8)                        :: fillValue = 9.99e20
     character(len=*), parameter :: subname = '(wav_import_export:check_globaldata)'
-
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1575,6 +1578,7 @@ contains
 
     call ESMF_GridCompGet(gcomp, importState=importstate, clock=clock, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
     ! use next time; the NUOPC clock is not updated until the end of the time interval
     call ESMF_ClockGetNextTime(clock, nextTime=nexttime, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
