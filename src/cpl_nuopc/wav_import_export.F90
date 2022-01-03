@@ -40,6 +40,7 @@ module wav_import_export
   type (fld_list_type)   :: fldsToWav(fldsMax)
   type (fld_list_type)   :: fldsFrWav(fldsMax)
 
+  real(r4), allocatable  :: import_mask(:) ! mask for valid import data
   real(r8), parameter    :: zero  = 0.0_r8
 
   character(*),parameter :: u_FILE_u = &
@@ -236,7 +237,6 @@ contains
 #endif
     real(r4), allocatable   :: wxdata(:)      ! only needed if merge_import
     real(r4), allocatable   :: wydata(:)      ! only needed if merge_import
-    real(r4), allocatable   :: import_mask(:) ! mask for valid import data
     character(len=CL)       :: msgString
     character(len=*), parameter :: subname='(wav_import_export:import_fields)'
     !---------------------------------------------------------------------------
@@ -323,7 +323,7 @@ contains
        if (merge_import) then
           ! set mask using u-wind field if merge_import; all import fields
           ! will have same missing overlap region
-          allocate(import_mask(nx*ny))
+          ! import_mask memory will be allocate in set_importmask
           call set_importmask(importState, clock, trim(uwnd), import_mask, vm, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           allocate(wxdata(nx*ny))
@@ -1504,6 +1504,9 @@ contains
     else
      firstCall  = .false.
      secondCall = .false.
+    end if
+    if (firstcall) then
+       allocate(import_mask(nx*ny))
     end if
 
     ! return if not the first or second call, mask has already been set
