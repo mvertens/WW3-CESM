@@ -40,7 +40,7 @@ contains
     use w3idatmd    , only : inflags1, inflags2
     use w3odatmd    , only : noge, idout, nds, notype
     use w3wdatmd    , only : time
-    use wav_shr_mod , only : wav_coupling_to_cice, wav_coupling_to_mom
+    use wav_shr_mod , only : wav_coupling_to_cice
     use wav_shr_mod , only : root_task, stdout
 
     ! Input parameter
@@ -324,7 +324,7 @@ contains
     CHARACTER(LEN=80)   :: LINEIN
     CHARACTER(LEN=8)    :: WORDS(7)=''
     LOGICAL             :: FLFLG, FLHOM, TFLAGI, FLH(-7:10)
-    INTEGER             :: THRLEV
+    INTEGER             :: THRLEV = 1
     INTEGER             :: TIME0(2), TIMEN(2), TTIME(2)
 
     DATA IDFLDS / 'ice param. 1 ' , 'ice param. 2 ' ,               &

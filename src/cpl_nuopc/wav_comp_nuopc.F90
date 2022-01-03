@@ -141,7 +141,7 @@ module wav_comp_nuopc
   use wav_import_export     , only : advertise_fields, realize_fields
   use wav_import_export     , only : state_getfldptr, state_fldchk
   use wav_shr_mod           , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit, ymd2date
-  use wav_shr_mod           , only : root_task, stdout, runtype
+  use wav_shr_mod           , only : root_task, stdout, runtype, merge_import, dbug_flag
 
   implicit none
   private ! except
@@ -184,7 +184,7 @@ contains
     character(len=*),parameter  :: subname=trim(modName)//':(SetServices) '
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     ! the NUOPC gcomp component will register the generic methods
     call NUOPC_CompDerive(gcomp, model_routine_SS, rc=rc)
@@ -224,7 +224,7 @@ contains
          specRoutine=ModelFinalize, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine SetServices
 
@@ -264,7 +264,7 @@ contains
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     !----------------------------------------------------------------------------
     ! advertise fields
@@ -332,10 +332,26 @@ contains
        call ESMF_LogWrite(trim(subname)//': profile_memory = '//trim(cvalue), ESMF_LOGMSG_INFO, rc=rc)
     end if
 
+    call NUOPC_CompAttributeGet(gcomp, name="merge_import", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent .and. isSet) then
+       if (trim(cvalue) == '.true.') then
+          merge_import = .true.
+       end if
+    end if
+
+    call NUOPC_CompAttributeGet(gcomp, name='dbug_flag', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent .and. isSet) then
+     read(cvalue,*) dbug_flag
+    end if
+    write(logmsg,'(A,i6)') trim(subname)//': Wave cap dbug_flag is ',dbug_flag
+    call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_INFO)
+
     call advertise_fields(importState, exportState, flds_scalar_name, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine InitializeAdvertise
 
@@ -361,7 +377,7 @@ contains
     type(ESMF_DistGrid)            :: distGrid
     type(ESMF_Mesh)                :: Emesh, EmeshTemp
     type(ESMF_VM)                  :: vm
-    type(ESMF_Time)                :: ETime
+    type(ESMF_Time)                :: esmfTime, stopTime
     type(ESMF_TimeInterval)        :: TimeStep
     character(CL)                  :: cvalue
     integer                        :: shrlogunit
@@ -394,6 +410,9 @@ contains
     character(CL)                  :: logfile
     character(len=*), parameter    :: subname = '(wav_comp_nuopc:InitializeRealize)'
     ! -------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     !--------------------------------------------------------------------
     ! Set up data structures
@@ -469,6 +488,8 @@ contains
     ! unit so that subsequent ESMF_UtilIOUnitGet calls do not return the
     ! the same unit.  After getting all the available unit numbers, close
     ! the units since they will be opened within W3INIT.
+    ! By default, unit numbers between 50 and 99 are scanned to find an
+    ! unopened unit number
 
     nds(1) = stdout
     nds(2) = stdout
@@ -523,13 +544,13 @@ contains
 
     ! Initial run or restart run
     if ( runtype == "initial") then
-       call ESMF_ClockGet( clock, startTime=ETime, rc=rc)
+       call ESMF_ClockGet( clock, startTime=esmfTime, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
-       call ESMF_ClockGet( clock, currTime=ETime, rc=rc )
+       call ESMF_ClockGet( clock, currTime=esmfTime, rc=rc )
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     endif
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=start_tod, rc=rc )
+    call ESMF_TimeGet( esmfTime, yy=yy, mm=mm, dd=dd, s=start_tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call ymd2date(yy, mm, dd, start_ymd)
 
@@ -540,9 +561,9 @@ contains
     time0(1) = start_ymd
     time0(2) = hh*10000 + mm*100 + ss
 
-    call ESMF_ClockGet( clock, stopTime=ETime, rc=rc)
+    call ESMF_ClockGet( clock, stopTime=stopTime, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=stop_tod, rc=rc )
+    call ESMF_TimeGet( stopTime, yy=yy, mm=mm, dd=dd, s=stop_tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call ymd2date(yy, mm, dd, stop_ymd)
 
@@ -666,6 +687,8 @@ contains
     !--------------------------------------------------------------------
     call shr_file_setlogunit (shrlogunit)
 
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
   end subroutine InitializeRealize
 
   !===============================================================================
@@ -674,7 +697,7 @@ contains
 
     use wav_import_export, only : state_getfldptr, state_fldchk
     use wav_import_export, only : calcRoughl 
-    use wav_shr_mod      , only : wav_coupling_to_cice, wav_coupling_to_mom
+    use wav_shr_mod      , only : wav_coupling_to_cice
     use w3gdatmd         , only : nx, ny
 
     ! input/output variables
@@ -723,7 +746,7 @@ contains
     !--------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' entered', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     call NUOPC_ModelGet(gcomp, exportState=exportState, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -841,10 +864,12 @@ contains
     call State_SetScalar(dble(ny), flds_scalar_index_ny, exportState, flds_scalar_name, flds_scalar_num, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call state_diagnose(exportState, 'at DataInitialize ', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if ( dbug_flag > 5) then
+       call state_diagnose(exportState, 'at DataInitialize ', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
-    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine DataInitialize
 
@@ -861,6 +886,8 @@ contains
     use wav_import_export , only : import_fields, export_fields
 #ifdef CESMCOUPLED
     use wav_shr_mod       , only : rstwr, histwr, outfreq
+#else
+    use wav_shel_inp      , only : odat
 #endif
 
     ! arguments:
@@ -868,26 +895,24 @@ contains
     integer, intent(out) :: rc
 
     ! local variables
-    type(ESMF_State) :: importState
-    type(ESMF_State) :: exportState
-    type(ESMF_Clock) :: clock
-    type(ESMF_Alarm) :: alarm
-    type(ESMF_TIME)  :: ETime
-
-    type(ESMF_TimeInterval)    :: timeStep
-    type(ESMF_Time)            :: currTime, startTime, stopTime
-
-    integer          :: yy,mm,dd,hh,ss
-    integer          :: ymd        ! current year-month-day
-    integer          :: tod        ! current time of day (sec)
-    integer          :: time0(2)
-    integer          :: timen(2)
-    integer          :: shrlogunit ! original log unit and level
-    character(ESMF_MAXSTR)     :: msgString
+    type(ESMF_State)        :: importState
+    type(ESMF_State)        :: exportState
+    type(ESMF_Clock)        :: clock
+    type(ESMF_Alarm)        :: alarm
+    type(ESMF_TimeInterval) :: timeStep
+    type(ESMF_Time)         :: currTime, nextTime, startTime, stopTime
+    integer                 :: yy,mm,dd,hh,ss
+    integer                 :: ymd        ! current year-month-day
+    integer                 :: tod        ! current time of day (sec)
+    integer                 :: time0(2)
+    integer                 :: timen(2)
+    integer                 :: shrlogunit ! original log unit and level
+    character(ESMF_MAXSTR)  :: msgString
     character(len=*),parameter :: subname = '(wav_comp_nuopc:ModelAdvance) '
     !-------------------------------------------------------
+
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(trim(subname)// ': entered ModelAdvance', ESMF_LOGMSG_INFO)
+    if (dbug_flag  > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     !------------
     ! Reset shr logging to my log file
@@ -912,30 +937,42 @@ contains
     !------------
     ! Determine time info
     !------------
-    ! use current time for next time step the NUOPC clock is not updated
-    ! until the end of the time interval
-    call ESMF_ClockGetNextTime(clock, nextTime=ETime, rc=rc)
+    call ESMF_ClockGet( clock, currTime=currTime, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
+    call ESMF_TimeGet( currTime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call ymd2date(yy, mm, dd, ymd)
     hh = tod/3600
     mm = (tod - (hh * 3600))/60
     ss = tod - (hh*3600) - (mm*60)
-    if (root_task) then
-       write(stdout,*) 'ymd2date wav_comp_nuopc hh,mm,ss,ymd', hh,mm,ss,ymd
-    end if
-    timen(1) = ymd
-    timen(2) = hh*10000 + mm*100 + ss
     time0(1) = ymd
     time0(2) = hh*10000 + mm*100 + ss
+    if (root_task) then
+       write(stdout,'(a,3i4,i10)') 'ymd2date currTime wav_comp_nuopc hh,mm,ss,ymd', hh,mm,ss,ymd
+    end if
+
+    ! use next time; the NUOPC clock is not updated
+    ! until the end of the time interval
+    call ESMF_ClockGetNextTime(clock, nextTime=nextTime, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_TimeGet( nextTime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ymd2date(yy, mm, dd, ymd)
+    hh = tod/3600
+    mm = (tod - (hh * 3600))/60
+    ss = tod - (hh*3600) - (mm*60)
+
+    timen(1) = ymd
+    timen(2) = hh*10000 + mm*100 + ss
+
     time = time0
 
     !------------
     ! Obtain import data from import state
     !------------
-    call import_fields(gcomp, rc)
+    call import_fields(gcomp, time0, timen, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !------------
@@ -1004,6 +1041,8 @@ contains
 
     call shr_file_setLogUnit (shrlogunit)
 
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
   end subroutine ModelAdvance
 
   !===============================================================================
@@ -1039,7 +1078,7 @@ contains
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     ! query the Component for its clocks
     call NUOPC_ModelGet(gcomp, driverClock=dclock, modelClock=mclock, rc=rc)
@@ -1073,7 +1112,7 @@ contains
 
        call ESMF_GridCompGet(gcomp, name=name, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-       call ESMF_LogWrite(subname//'setting alarms for ' // trim(name), ESMF_LOGMSG_INFO)
+       call ESMF_LogWrite(trim(subname)//'setting alarms for ' // trim(name), ESMF_LOGMSG_INFO)
 
        !----------------
        ! Restart alarm
@@ -1159,7 +1198,7 @@ contains
     call ESMF_ClockSet(mclock, currTime=dcurrtime, timeStep=dtimestep, stopTime=mstoptime, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine ModelSetRunClock
 
@@ -1178,7 +1217,7 @@ contains
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     if (root_task) then
        write(stdout,F91)
@@ -1186,7 +1225,7 @@ contains
        write(stdout,F91)
     end if
 
-    call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine ModelFinalize
 
@@ -1219,10 +1258,11 @@ contains
     integer                        :: shrlogunit
     logical                        :: isPresent, isSet
     character(len=CL)              :: cvalue
-    character(len=*), parameter    :: subname = '(wavinit_cesm)'
+    character(len=*), parameter    :: subname = '(wav_comp_nuopc:wavinit_cesm)'
     ! -------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     namelist /ww3_inparm/ initfile, outfreq, dtcfl, dtcfli, dtmax, dtmin
 
@@ -1306,6 +1346,8 @@ contains
     call w3init ( 1, .false., 'ww3', nds, ntrace, odat, flgrd, flgr2, flgd, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 
+    if (dbug_flag  > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
   end subroutine waveinit_cesm
 #endif
 
@@ -1316,9 +1358,6 @@ contains
     ! Initialize ww3 for ufs (called from InitializeRealize)
 
     use w3odatmd     , only : nds, fnmpre
-    use w3adatmd     , only : charn,u10  ! TODO: remove (used for debugging)
-    use w3wdatmd     , only : ust        ! TODO: remove (used for debugging)
-    use w3gdatmd     , only : xgrd, ygrd ! TODO: remove (used for debugging)
     use w3initmd     , only : w3init
     use wav_shel_inp , only : read_shel_inp
     use wav_shel_inp , only : npts, odat, iprt, x, y, pnames, prtfrm
@@ -1331,11 +1370,11 @@ contains
     integer, intent(out) :: rc
 
     ! local variables
-    integer :: lb,ub
-    character(len=*), parameter :: subname = '(wavinit_ufs)'
+    character(len=*), parameter :: subname = '(wav_comp_nuopc:wavinit_ufs)'
     ! -------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     fnmpre = './'
     call ESMF_LogWrite(trim(subname)//' call read_shel_inp', ESMF_LOGMSG_INFO)
@@ -1345,21 +1384,7 @@ contains
     call w3init ( 1, .false., 'ww3', nds, ntrace, odat, flgrd, flgr2, flgd, flg2, &
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 
-    !lb = lbound(ust,1); ub = ubound(ust,1)
-    !!write(msgString,'(A,2i7,10g14.7)')'w3init ust ',lb,ub, ust((ub-lb)/2:9+(ub-lb)/2)
-    !write(msgString,'(A,2i7,10g14.7)')'w3init ust ',lb,ub,ust(2955:2964)
-    !call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    !lb = lbound(charn,1); ub = ubound(charn,1)
-    !!write(msgString,'(A,2i7,10g14.7)')'w3init charn ',lb,ub, charn((ub-lb)/2:9+(ub-lb)/2)
-    !write(msgString,'(A,2i7,10g14.7)')'w3init charn ',lb,ub,charn(2955:2964)
-    !call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    !lb = lbound(u10,1); ub = ubound(u10,1)
-    !write(msgString,'(A,2i7,10g14.7)')'w3init u10 ',lb,ub,u10(2955:2964)
-    !call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    !call ESMF_LogWrite(trim(subname)//' done = w3init', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine waveinit_ufs
 #endif

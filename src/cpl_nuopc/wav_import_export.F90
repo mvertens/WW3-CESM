@@ -3,11 +3,12 @@ module wav_import_export
   use ESMF
   use NUOPC
   use NUOPC_Model
-  use wav_kind_mod , only : r8 => shr_kind_r8
+  use wav_kind_mod , only : r8 => shr_kind_r8, r4 => shr_kind_r4, i4 => shr_kind_i4
+  use wav_kind_mod , only : CL => shr_kind_cl, CS => shr_kind_cs
   use wav_shr_mod  , only : ymd2date
   use wav_shr_mod  , only : chkerr
   use wav_shr_mod  , only : state_diagnose, state_reset
-  use wav_shr_mod  , only : wav_coupling_to_cice, wav_coupling_to_mom
+  use wav_shr_mod  , only : wav_coupling_to_cice, merge_import, dbug_flag
   use constants    , only : grav, tpi, dwat
 
   implicit none
@@ -23,6 +24,9 @@ module wav_import_export
 
   private :: fldlist_add
   private :: fldlist_realize
+  private :: set_importmask
+  private :: check_globaldata
+  private :: readfromfile
 
   type fld_list_type
      character(len=128) :: stdname
@@ -36,17 +40,25 @@ module wav_import_export
   type (fld_list_type)   :: fldsToWav(fldsMax)
   type (fld_list_type)   :: fldsFrWav(fldsMax)
 
-  integer     ,parameter :: dbug_flag = 0 ! internal debug level
   character(*),parameter :: u_FILE_u = &
        __FILE__
 
-  real(r8), parameter :: zero  = 0.0_r8
+#ifdef CESMCOUPLED
+  integer, parameter :: prec = r8
+  integer, parameter :: iprec = 8
+#else
+  integer, parameter :: prec = r4
+  integer, parameter :: iprec = 4
+#endif
+  real(prec), parameter   :: zero  = 0.0_prec
+  real(r4)  , allocatable :: import_mask(:)       ! mask for valid import data
 
 !===============================================================================
 contains
 !===============================================================================
 
   subroutine advertise_fields(importState, ExportState, flds_scalar_name, rc)
+
     ! input/output variables
     type(ESMF_State)               :: importState
     type(ESMF_State)               :: exportState
@@ -60,14 +72,13 @@ contains
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     !--------------------------------
     ! Advertise import fields
     !--------------------------------
 
-    call fldlist_add(fldsToWav_num, fldsToWav, trim(flds_scalar_name))
-
-    !call fldlist_add(fldsToWav_num, fldsToWav, 'So_h'       )
+   !call fldlist_add(fldsToWav_num, fldsToWav, 'So_h'       )
     call fldlist_add(fldsToWav_num, fldsToWav, 'Si_ifrac'   )
     call fldlist_add(fldsToWav_num, fldsToWav, 'So_u'       )
     call fldlist_add(fldsToWav_num, fldsToWav, 'So_v'       )
@@ -135,7 +146,7 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end do
 
-    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5)call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine advertise_fields
 
@@ -157,6 +168,7 @@ contains
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     call NUOPC_ModelGet(gcomp, importState=importState, exportState=exportState, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -186,15 +198,17 @@ contains
     call state_reset(ImportState, zero, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call state_diagnose(exportState, 'after state_reset', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (dbug_flag > 5) then
+       call state_diagnose(exportState, 'after state_reset', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
-    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine realize_fields
 
   !===============================================================================
-  subroutine import_fields( gcomp, rc )
+  subroutine import_fields( gcomp, time0, timen, rc )
 
     !---------------------------------------------------------------------------
     ! Obtain the wave input from the mediator
@@ -203,7 +217,6 @@ contains
     use w3gdatmd    , only: nseal, MAPSTA, MAPFS, MAPSF, NX, NY
     use w3idatmd    , only: CX0, CY0, CXN, CYN, DT0, DTN, ICEI, WLEV, INFLAGS1, ICEP1, ICEP5
     use w3idatmd    , only: TC0, TCN, TLN, TIN, TI1, TI5, TW0, TWN, WX0, WY0, WXN, WYN
-    use w3odatmd    , only: naproc, iaproc, napout
     use w3wdatmd    , only: time
 #ifdef CESMCOUPLED
     use w3idatmd    , only: HML
@@ -212,63 +225,52 @@ contains
 #endif
 
     ! input/output variables
-    type(ESMF_GridComp)  :: gcomp
-    integer, intent(out) :: rc
+    type(ESMF_GridComp) , intent(inout) :: gcomp
+    integer             , intent(in)    :: time0(2), timen(2)
+    integer             , intent(out)   :: rc
 
     ! Local variables
-    type(ESMF_State)  :: importState
-    type(ESMF_VM)     :: vm
-    type(ESMF_Clock)  :: clock
-    type(ESMF_Time)   :: ETime
-    integer           :: ymd, tod
-    integer           :: yy, mm, dd, hh, ss
-    integer           :: n, ix, iy, isea
-    real(r8)          :: def_value
-    integer           :: time0(2) ! starting time of the run interval
-    integer           :: timen(2) ! ending time of the run interval
-    real(r8)          :: data_global(nx*ny)
-    real(r8), allocatable :: data_global2(:)
+    type(ESMF_State)        :: importState
+    type(ESMF_VM)           :: vm
+    type(ESMF_Clock)        :: clock
+    integer                 :: n, ix, iy
+    real(r4)                :: wxdata(nx*ny)
+    real(r4)                :: wydata(nx*ny)
+    real(prec)              :: data_global(nx*ny)
+    real(prec), allocatable :: data_global2(:)
+    real(prec)              :: def_value
 #ifdef CESMCOUPLED
-    character(len=10) :: uwnd = 'Sa_u', vwnd = 'Sa_v'
+    character(len=10)       :: uwnd = 'Sa_u'
+    character(len=10)       :: vwnd = 'Sa_v'
 #else
-    character(len=10) :: uwnd = 'Sa_u10m', vwnd = 'Sa_v10m'
+    character(len=10)       :: uwnd = 'Sa_u10m'
+    character(len=10)       :: vwnd = 'Sa_v10m'
 #endif
+    character(len=CL)       :: msgString
     character(len=*), parameter :: subname='(wav_import_export:import_fields)'
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     ! Get import state, clock and vm
     call ESMF_GridCompGet(gcomp, clock=clock, importState=importState, vm=vm, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call state_diagnose(importState, 'at import ', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! Determine time0 and timen - note have not advanced the model clock yet with nuopc
-    call ESMF_ClockGetNextTime( clock, Etime, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ymd2date(yy, mm, dd, ymd)
-    hh = tod/3600
-    mm = (tod - (hh * 3600))/60
-    ss = tod - (hh*3600) - (mm*60)
-    timen(1) = ymd
-    timen(2) = hh*10000 + mm*100 + ss
+    if (dbug_flag > 5) then
+       call state_diagnose(importState, 'at import ', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
-    call ESMF_ClockGet( clock, currTime=ETime, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_TimeGet( ETime, yy=yy, mm=mm, dd=dd, s=tod, rc=rc )
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call ymd2date(yy, mm, dd, ymd)
-    hh = tod/3600
-    mm = (tod - (hh * 3600))/60
-    ss = tod - (hh*3600) - (mm*60)
-    time0(1) = ymd
-    time0(2) = hh*10000 + mm*100 + ss
-    time = time0
+    ! set mask using u-wind field if merge_import; all import fields
+    ! will have same missing overlap region
+    if (.not.allocated(import_mask)) then
+       allocate(import_mask(nx*ny))
+    end if
+    if (merge_import) then
+       call set_importmask(importState, clock, trim(uwnd), import_mask, vm, rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
     ! input fields associated with W3FLDG calls in ww3_shel.ftn
     ! these arrays are global, just fill the local cells for use later
@@ -277,7 +279,7 @@ contains
     ! set time for input data to time0 and timen (shouldn't matter)
 
     ! note that INFLAGS(1-5) is true for CESM, for UWM INFLAGS(2:4) is true
-    def_value = 0.0
+    def_value = 0.0_prec
 
     ! ---------------
     ! INFLAGS1(1)
@@ -337,6 +339,21 @@ contains
        TW0  = time0       ! times for atm wind/temp fields.
        TWN  = timen
 
+       if (merge_import) then
+          call readfromfile('WND', wxdata, wydata, time0, timen, rc)
+          if (ChkErr(rc,__LINE__,u_FILE_u)) return
+          if (dbug_flag > 10) then
+             call check_globaldata(gcomp, 'wxdata', wxdata, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
+             call check_globaldata(gcomp, 'wydata', wydata, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
+          end if
+       else
+          wxdata = def_value
+          wydata = def_value
+          import_mask = 1.0_r4
+       end if
+
        WX0(:,:) = def_value   ! atm u wind
        WXN(:,:) = def_value
        if (state_fldchk(importState, trim(uwnd))) then
@@ -346,10 +363,16 @@ contains
           do iy = 1,NY
              do ix = 1,NX
                 n = n + 1
-                WX0(ix,iy) = data_global(n)
-                WXN(ix,iy) = data_global(n)
+                WX0(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
+                WXN(ix,iy) = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wxdata(n)
              end do
           end do
+          if (dbug_flag > 10) then
+             call check_globaldata(gcomp, 'import_mask', import_mask, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
+             call check_globaldata(gcomp, 'wx0', wx0, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
+          end if
        end if
 
        WY0(:,:) = def_value   ! atm v wind
@@ -358,15 +381,19 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           call SetGlobalInput(importState, trim(vwnd), vm, data_global, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-       end if
-       n = 0
-       do iy = 1,NY
-          do ix = 1,NX
-             n = n + 1
-             WY0(ix,iy)  = data_global(n)
-             WYN(ix,iy)  = data_global(n)
+          n = 0
+          do iy = 1,NY
+             do ix = 1,NX
+                n = n + 1
+                WY0(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
+                WYN(ix,iy)  = data_global(n)*import_mask(n) + (1.0_r4 - import_mask(n))*wydata(n)
+             end do
           end do
-       end do
+          if (dbug_flag > 10) then
+             call check_globaldata(gcomp, 'wy0', wy0, rc)
+             if (ChkErr(rc,__LINE__,u_FILE_u)) return
+          end if
+       end if
 
        DT0(:,:) = def_value   ! air temp - ocn temp
        DTN(:,:) = def_value
@@ -501,7 +528,7 @@ contains
        end if
     end if
 
-    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine import_fields
 
@@ -537,8 +564,8 @@ contains
     real(r8), pointer :: wbcuru(:)
     real(r8), pointer :: wbcurv(:)
     real(r8), pointer :: wbcurp(:)
-    !real(r8), pointer :: uscurr(:)
-    !real(r8), pointer :: vscurr(:)
+   !real(r8), pointer :: uscurr(:)
+   !real(r8), pointer :: vscurr(:)
     real(r8), pointer :: sxxn(:)
     real(r8), pointer :: sxyn(:)
     real(r8), pointer :: syyn(:)
@@ -588,12 +615,11 @@ contains
     real(r8), pointer :: sw_ustokes3(:)
     real(r8), pointer :: sw_vstokes3(:)
 #endif
-
     character(len=*), parameter :: subname='(wav_import_export:export_fields)'
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     ! Get export state
     call NUOPC_ModelGet(gcomp, exportState=exportState, rc=rc)
@@ -912,8 +938,10 @@ contains
    end if
 #endif
 
-    call state_diagnose(exportState, 'at export ', rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (dbug_flag > 5) then
+       call state_diagnose(exportState, 'at export ', rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
 
   end subroutine export_fields
 
@@ -927,12 +955,12 @@ contains
     integer, optional,          intent(in)    :: ungridded_ubound
 
     ! local variables
-    integer :: rc
     character(len=*), parameter :: subname='(wav_import_export:fldlist_add)'
     !-------------------------------------------------------------------------------
 
-    ! Set up a list of field information
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
+    ! Set up a list of field information
     num = num + 1
     if (num > fldsMax) then
        call ESMF_LogWrite(trim(subname)//": ERROR num > fldsMax "//trim(stdname), &
@@ -948,7 +976,6 @@ contains
   end subroutine fldlist_add
 
   !===============================================================================
-
   subroutine fldlist_realize(state, fldList, numflds, flds_scalar_name, flds_scalar_num, mesh, tag, rc)
 
     use NUOPC, only : NUOPC_IsConnected, NUOPC_Realize
@@ -976,6 +1003,7 @@ contains
     ! ----------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     do n = 1, numflds
        stdname = fldList(n)%stdname
@@ -1065,11 +1093,11 @@ contains
     use ESMF , only : ESMF_FIELDSTATUS_COMPLETE, ESMF_FAILURE
 
     ! input/output variables
-    type(ESMF_State),  intent(in)    :: State
-    character(len=*),  intent(in)    :: fldname
+    type(ESMF_State),            intent(in)    :: State
+    character(len=*),            intent(in)    :: fldname
     real(R8), pointer, optional, intent(out)   :: fldptr1d(:)
     real(R8), pointer, optional, intent(out)   :: fldptr2d(:,:)
-    integer,           intent(out)   :: rc
+    integer,                     intent(out)   :: rc
 
     ! local variables
     type(ESMF_FieldStatus_Flag) :: status
@@ -1080,10 +1108,7 @@ contains
     ! ----------------------------------------------
 
     rc = ESMF_SUCCESS
-
-    if (dbug_flag > 5) then
-       call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
-    end if
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     call ESMF_StateGet(State, itemName=trim(fldname), field=lfield, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1117,9 +1142,7 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     endif  ! status
 
-    if (dbug_flag > 5) then
-       call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
-    end if
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine state_getfldptr
 
@@ -1217,7 +1240,7 @@ contains
     use wav_shr_mod, only : runtype
 
     ! input/output variables
-    real(r8)         , pointer    :: wrln(:) ! 2D roughness length export field ponter
+    real(r8), pointer :: wrln(:) ! 2D roughness length export field ponter
 
     ! local variables
     integer       :: isea, jsea, ix, iy
@@ -1225,10 +1248,6 @@ contains
     real          :: tauwx, tauwy, cd, z0, fmeanws, dlwmean
     logical       :: llws(nspec)
     logical, save :: firstCall = .true.
-
-    integer               :: lb, ub
-    character(len=1024)   :: msgString
-
     !----------------------------------------------------------------------
 
     jsea_loop: do jsea = 1,nseal
@@ -1242,6 +1261,8 @@ contains
              llws(:) = .true.
              ustar = zero
              ustdr = zero
+             tauwx = zero
+             tauwy = zero
 #ifdef W3_ST3
              call w3spr3( va(:,jsea), cg(1:nk,isea), wn(1:nk,isea),   &
                           emean, fmean, fmean1, wnmean, amax,         &
@@ -1259,31 +1280,6 @@ contains
        endif !firstCall
        wrln(jsea) = charn(jsea)*ust(isea)**2/grav
     enddo jsea_loop
-
-    !if(ix .eq. 86 .and. iy .eq. 230),index= on 194 index 2958
-    write(msgString,'(A18,g14.7)')'CalcRoughl mapsta ',mapsta(230,86)
-    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-    !write(msgString,'(A,10g14.7)')'CalcRoughl mapsta ',mapsta(230,83:92)
-    !call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    lb = lbound(ust,1); ub = ubound(ust,1)
-    !write(msgString,'(A,2i7,10g14.7)')'CalcRoughl ust ',lb,ub, ust((ub-lb)/2:9+(ub-lb)/2)
-    write(msgString,'(A18,2i7,10g14.7)')'CalcRoughl ust ',lb,ub, ust(2955:2964)
-    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    lb = lbound(charn,1); ub = ubound(charn,1)
-    !write(msgString,'(A,2i7,10g14.7)')'CalcRoughl charn ',lb,ub, charn((ub-lb)/2:9+(ub-lb)/2)
-    write(msgString,'(A18,2i7,10g14.7)')'CalcRoughl charn ',lb,ub, charn(2955:2964)
-    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    lb = lbound(wrln,1); ub = ubound(wrln,1)
-    !write(msgString,'(A,2i7,10g14.7)')'CalcRoughl wrln ',lb,ub, wrln((ub-lb)/2:9+(ub-lb)/2)
-    write(msgString,'(A18,2i7,10g14.7)')'CalcRoughl wrln ',lb,ub, wrln(2955:2964)
-    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
-
-    lb = lbound(u10,1); ub = ubound(u10,1)
-    write(msgString,'(A18,2i7,10g14.7)')'CalcRoughl u10 ',lb,ub, u10(2955:2964)
-    call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
 
     firstCall = .false.
 
@@ -1431,31 +1427,282 @@ contains
     type(ESMF_State) , intent(in)  :: importState
     character(len=*) , intent(in)  :: fldname
     type(ESMF_VM)    , intent(in)  :: vm
-    real(r8)         , intent(out) :: global_output(nx*ny)
+    real(prec)       , intent(out) :: global_output(nx*ny)
     integer          , intent(out) :: rc
 
     ! local variables
     integer           :: n, isea, ix, iy
-    real(r8)          :: global_input(nx*ny)
+    real(prec)        :: global_input(nx*ny)
     real(r8), pointer :: dataptr(:)
-
+    character(len=*), parameter :: subname = '(wav_import_export:setGlobalInput)'
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
 
     call state_getfldptr(importState, trim(fldname), fldptr1d=dataptr, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    global_output(:) = 0._r8
-    global_input(:) = 0._r8
+    global_output(:) = 0._prec
+    global_input(:) = 0._prec
     do n = 1, nseal
        isea = iaproc + (n-1)*naproc
        ix = mapsf(isea,1)
        iy = mapsf(isea,2)
-       global_input(ix + (iy-1)*nx) = dataptr(n)
+       global_input(ix + (iy-1)*nx) = real(dataptr(n),iprec)
     end do
     call ESMF_VMAllReduce(vm, sendData=global_input, recvData=global_output, count=nx*ny, reduceflag=ESMF_REDUCE_SUM, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
   end subroutine SetGlobalInput
+
+  !====================================================================================
+  subroutine set_importmask(importState, clock, fldname, import_mask, vm, rc)
+
+    use w3gdatmd, only: nseal, mapsta, mapfs, mapsf, nx, ny
+    use w3odatmd, only: naproc, iaproc
+
+    ! input/output variables
+    type(ESMF_State) , intent(in)  :: importState
+    type(ESMF_Clock) , intent(in)  :: clock
+    character(len=*) , intent(in)  :: fldname
+    type(ESMF_VM)    , intent(in)  :: vm
+    real(r4)         , intent(out) :: import_mask(nx*ny)
+    integer          , intent(out) :: rc
+
+    ! local variables
+    type(ESMF_Time)         :: currTime, startTime
+    type(ESMF_TimeInterval) :: timeStep
+    logical                 :: firstCall, secondCall
+    real(r4)                :: fillValue = 9.99e20
+    integer                 :: isea, n, ix, iy
+    real(r8), pointer       :: dataptr(:)
+    real(r4)                :: mask_local(nx*ny)
+    real(r4)                :: mask_global(nx*ny)
+    character(len=CL)       :: msgString
+    character(len=*), parameter :: subname = '(wav_import_export:set_importmask)'
+    !---------------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
+
+    call ESMF_ClockGet(clock, startTime=startTime, currTime=currTime, timeStep=timeStep, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! set call flags
+    if (startTime == currTime) then
+     firstCall  = .true.
+     secondCall = .false.
+    elseif (currTime == startTime+timeStep) then
+     firstCall  = .false.
+     secondCall = .true.
+    else
+     firstCall  = .false.
+     secondCall = .false.
+    end if
+
+    ! return if not the first or second call, mask has already been set
+    if (.not. firstCall .and. .not. secondCall) return
+
+    ! no valid import at firstCall, use all data
+    if (firstCall) then
+       import_mask(:) = 0.0_r4
+       call ESMF_ClockPrint(clock, options='currTime', preString='Setting initial import_mask at currTime : ', &
+          unit=msgString, rc=rc)
+       call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
+    end if
+
+    ! set merge mask where import field has fillvalue due to non-overlapping model domains
+    if (secondCall) then
+       call ESMF_ClockPrint(clock, options='currTime', preString='Setting new import_mask at currTime : ', &
+          unit=msgString, rc=rc)
+       call state_getfldptr(importState, trim(fldname), fldptr1d=dataptr, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       import_mask(:) = 0.0_r4
+       mask_local(:) = 1.0_r4
+       do n = 1, nseal
+          isea = iaproc + (n-1)*naproc
+          ix = mapsf(isea,1)
+          iy = mapsf(isea,2)
+          if (real(dataptr(n),4) .ge. fillValue) then
+             mask_local(ix + (iy-1)*nx) = 0.0_r4
+          end if
+       end do
+       call ESMF_VMAllReduce(vm, sendData=mask_local, recvData=import_mask, count=nx*ny, reduceflag=ESMF_REDUCE_MIN, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    end if
+
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine set_importmask
+
+  !====================================================================================
+  subroutine check_globaldata(gcomp, fldname, global_data, rc)
+
+    use w3gdatmd, only: nseal, mapsta, mapfs, mapsf, nx, ny
+    use w3odatmd, only: naproc, iaproc
+
+    ! input/output variables
+    type(ESMF_GridComp)  :: gcomp
+
+    character(len=*) , intent(in)  :: fldname
+    real(r4)         , intent(in)  :: global_data(nx*ny)
+    integer          , intent(out) :: rc
+
+    ! local variables
+    type(ESMF_Clock)   :: clock
+    type(ESMF_State)   :: importState
+    type(ESMF_Time)    :: currtime, nexttime
+    type(ESMF_Field)   :: lfield
+    type(ESMF_Field)   :: newfield
+    type(ESMF_MeshLoc) :: meshloc
+    type(ESMF_Mesh)    :: lmesh
+
+    character(len=CS) :: timestr
+    character(ESMF_MAXSTR) ,pointer :: lfieldnamelist(:)
+    integer           :: fieldCount
+    integer           :: lrank
+    integer           :: yr,mon,day,sec    ! time units
+    integer           :: n, nn, isea, ix, iy
+    real(r8), pointer :: dataptr1d(:)
+    real(r8)          :: fillValue = 9.99e20
+    character(len=*), parameter :: subname = '(wav_import_export:check_globaldata)'
+
+    !---------------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
+
+    call ESMF_GridCompGet(gcomp, importState=importstate, clock=clock, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! use next time; the NUOPC clock is not updated until the end of the time interval
+    call ESMF_ClockGetNextTime(clock, nextTime=nexttime, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_TimeGet(nexttime,yy=yr, mm=mon, dd=day, s=sec, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    write(timestr,'(i4.4,a,i2.2,a,i2.2,a,i5.5)') yr,'-',mon,'-',day,'-',sec
+
+    call ESMF_StateGet(importState, itemCount=fieldCount, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    allocate(lfieldNameList(fieldCount))
+    call ESMF_StateGet(importState, itemNameList=lfieldNameList, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+    ! assumes no scalar field is present in importState
+    call ESMF_StateGet(importState, itemName=lfieldNameList(1), field=lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    deallocate(lfieldNameList)
+
+    call ESMF_FieldGet(lfield, mesh=lmesh, meshloc=meshloc, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    newfield = ESMF_FieldCreate(lmesh, ESMF_TYPEKIND_R8, meshloc=meshloc, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(newfield, farrayptr=dataPtr1d, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    dataptr1d(:) = fillValue
+
+    do n = 1, nseal
+       isea = iaproc + (n-1)*naproc
+       ix = mapsf(isea,1)
+       iy = mapsf(isea,2)
+       dataptr1d(n) = global_data(ix + (iy-1)*nx)
+    end do
+
+    call ESMF_FieldWrite(newfield, filename=trim(fldname)//'.'//trim(timestr)//'.nc', &
+      variableName=trim(fldname), overwrite=.true., rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldDestroy(newfield, rc=rc, noGarbage=.true.)
+
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine check_globaldata
+
+  !========================================================================
+  subroutine readfromfile (idfld, wxdata, wydata, time0, timen, rc)
+
+    use w3gdatmd, only: gtype, nx, ny
+    use w3fldsmd, only: w3fldo, w3fldg
+
+    ! input/output variables
+    character(len=*) , intent(in)    :: idfld
+    integer          , intent(in)    :: time0(2)
+    integer          , intent(in)    :: timen(2)
+    real(r4)         , intent(out)   :: wxdata(nx*ny)
+    real(r4)         , intent(out)   :: wydata(nx*ny)
+    integer, optional, intent(out)   :: rc
+
+    ! local variables
+    integer                     :: ierr, tw0l(2), twnl(2)
+    integer                     :: ix, iy, n
+    integer                     :: nxt, nyt, gtypet, filler(3), tideflag
+    integer                     :: mdse = 6
+    integer                     :: mdst = 10
+    integer                     :: mdsf = 13   ! same as ndsf(3) in ww3_shel
+    real                        :: wx0l(nx,ny), wy0l(nx,ny)
+    real                        :: wxnl(nx,ny), wynl(nx,ny)
+    real                        :: dt0l(nx,ny), dtnl(nx,ny)
+    logical                     :: flagsc = .false.
+    logical, save               :: firstCall = .true.
+    character(len=13)           :: tsstr
+    character(len=3)            :: tsfld, lstring
+    character(CL)               :: logmsg
+    character(len=*), parameter :: subname = '(wav_import_export:readfromfile)'
+    !---------------------------------------------------------------------------
+
+    rc = ESMF_SUCCESS
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' called', ESMF_LOGMSG_INFO)
+
+    lstring = trim(idfld)
+    if (firstCall) then
+      ! open file
+      call w3fldo('READ', lstring, mdsf, mdst, mdse, nx, ny, gtype, ierr)
+      write(logmsg,*) "Opening "//lstring//", iostat = ", ierr
+      call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_ERROR)
+      if (ierr.ne.0) then
+        write(logmsg,*) "Error in opening "//lstring//", iostat = ", ierr
+        call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_ERROR)
+        rc = ESMF_FAILURE
+        return
+      endif
+      firstCall = .false.
+    end if
+
+    ! init variables
+    wx0l = 0.0
+    wy0l = 0.0
+    dt0l = 0.0
+    wxnl = 0.0
+    wynl = 0.0
+    dtnl = 0.0
+
+    ! need to rewind to the begining of the file to access
+    ! data of requested date correctly
+    rewind(mdsf)
+
+    ! read header information
+    ! this was inside of w3fldo call but since we are opening file
+    ! once and rewinding, the header need to be read
+    read(mdsf, iostat=ierr) tsstr, tsfld, nxt, nyt, &
+      gtypet, filler(1:2), tideflag
+
+    ! read input
+    call w3fldg('READ', lstring, mdsf, mdst, mdse, nx, ny, &
+           nx, ny, time0, timen, tw0l, wx0l, wy0l, dt0l, twnl, &
+           wxnl, wynl, dtnl, ierr, flagsc)
+
+    n = 0
+    wxdata(:) = 0.0_r4
+    wydata(:) = 0.0_r4
+    do iy = 1,NY
+       do ix = 1,NX
+          n = n + 1
+          wxdata(n) = wx0l(ix,iy)
+          wydata(n) = wy0l(ix,iy)
+       end do
+    end do
+
+    if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
+
+  end subroutine readfromfile
 
 end module wav_import_export

@@ -40,8 +40,6 @@ module wav_shr_mod
   logical           , public :: root_task
   integer           , public :: stdout
   character(len=cs) , public :: runtype
-  logical           , public :: wav_coupling_to_cice = .false. ! TODO: generalize this
-  logical           , public :: wav_coupling_to_mom  = .false. ! TODO: generalize this
 
 #ifdef CESMCOUPLED
   ! if a run is a startup or branch run, then initfile is used
@@ -58,6 +56,9 @@ module wav_shr_mod
   character(len=16)  , public :: inst_name   ! fullname of current instance (ie. "wav_0001")
   character(len=16)  , public :: inst_suffix ! char string associated with instance
 #endif
+  logical            , public :: merge_import  = .false.
+  logical            , public :: wav_coupling_to_cice = .false. ! TODO: generalize this
+  integer            , public :: dbug_flag = 0
 
   interface ymd2date
      module procedure ymd2date_int
@@ -118,7 +119,7 @@ contains
     type(ESMF_Field)  :: field
     real(r8), pointer :: farrayptr(:,:)
     real(r8)          :: tmp(1)
-    character(len=*), parameter :: subname='(state_getscalar)'
+    character(len=*), parameter :: subname = ' (wav_shr_mod:state_getscalar) '
     ! ----------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -169,7 +170,7 @@ contains
     type(ESMF_Field)  :: lfield
     type(ESMF_VM)     :: vm
     real(r8), pointer :: farrayptr(:,:)
-    character(len=*), parameter :: subname='(state_setscalar)'
+    character(len=*), parameter :: subname = ' (wav_shr_mod:state_setscalar) '
     ! ----------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -218,7 +219,7 @@ contains
     real(R8), pointer                   :: fldptr1(:)
     real(R8), pointer                   :: fldptr2(:,:)
     real(R8), parameter                 :: czero = 0.0_R8
-    character(len=*),parameter          :: subname='(state_reset)'
+    character(len=*), parameter         :: subname = ' (wav_shr_mod:state_reset) '
     ! ----------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -275,10 +276,8 @@ contains
     character(ESMF_MAXSTR) ,pointer :: lfieldnamelist(:)
     real(r8), pointer               :: dataPtr1d(:)
     real(r8), pointer               :: dataPtr2d(:,:)
-    character(len=*),parameter      :: subname='(state_diagnose)'
-    integer :: lb,ub
+    character(len=*), parameter     :: subname = ' (wav_shr_mod:state_diagnose) '
     ! ----------------------------------------------
-
 
     call ESMF_StateGet(state, itemCount=fieldCount, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
@@ -288,7 +287,6 @@ contains
     if (chkerr(rc,__LINE__,u_FILE_u)) return
 
     do n = 1, fieldCount
-
        call ESMF_StateGet(state, itemName=lfieldnamelist(n), field=lfield, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
 
@@ -301,10 +299,6 @@ contains
           if (size(dataPtr1d) > 0) then
              write(msgString,'(A,3g14.7,i8)') trim(string)//': '//trim(lfieldnamelist(n))//'  ', &
                   minval(dataPtr1d), maxval(dataPtr1d), sum(dataPtr1d), size(dataPtr1d)
-             !lb = lbound(dataPtr1d,1); ub = ubound(dataPtr1d,1)
-             !write(msgString,'(A,2i7,10g14.7)') trim(string)//': '//trim(lfieldnamelist(n))//'  ', &
-             !   lb,ub,dataPtr1d((ub-lb)/2:9+(ub-lb)/2)
-             !   lb,ub,dataPtr1d(2955:2964)
           else
              write(msgString,'(A,a)') trim(string)//': '//trim(lfieldnamelist(n))," no data"
           endif
@@ -351,11 +345,8 @@ contains
     type(ESMF_Mesh)             :: lmesh
     integer                     :: lrank, nnodes, nelements
     logical                     :: labort
-    character(len=*), parameter :: subname='(field_getfldptr)'
+    character(len=*), parameter :: subname = ' (wav_shr_mod:field_getfldptr) '
     ! ----------------------------------------------
-
-
-!print*, 'HK inside field_getfldptr'
 
     if (.not.present(rc)) then
        call ESMF_LogWrite(trim(subname)//": ERROR rc not present ", &
@@ -481,7 +472,7 @@ contains
     type(ESMF_Time)         :: NextAlarm        ! Next restart alarm time
     type(ESMF_TimeInterval) :: AlarmInterval    ! Alarm interval
     integer                 :: sec
-    character(len=*), parameter :: subname = '(set_alarmInit): '
+    character(len=*), parameter :: subname = ' (wav_shr_mod:set_alarmInit) '
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -852,7 +843,7 @@ contains
     integer :: year, mon, day ! year, month, day as integers
     integer :: tdate          ! temporary date
     integer :: date           ! coded-date (yyyymmdd)
-    character(len=*), parameter :: subname='(timeInit)'
+    character(len=*), parameter :: subname = ' (wav_shr_mod:timeInit) '
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
