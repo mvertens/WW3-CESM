@@ -23,8 +23,8 @@ module wav_shel_inp
   logical, public           :: prtfrm
   logical, public           :: flgrd(nogrp,ngrpp) !flags for gridded output
   logical, public           :: flgr2(nogrp,ngrpp) !flags for coupling output
-  logical, public           :: flgd(nogrp)        !flags for whole group - not currently used in cesm 
-  logical, public           :: flg2(nogrp)        !flags for whole group - not currently used in cesm 
+  logical, public           :: flgd(nogrp)        !flags for whole group - not currently used in cesm
+  logical, public           :: flg2(nogrp)        !flags for whole group - not currently used in cesm
   real, allocatable, public :: x(:), y(:)
 
   include "mpif.h"
@@ -78,7 +78,6 @@ contains
     inflags1(:)   = .false.
     inflags1(1:5) = .true.
     inflags2(:)   = .false.
-
     if (wav_coupling_to_cice) then
        inflags1(-7) = .true. ! ice thickness
        inflags1(-3) = .true. ! ice floe size

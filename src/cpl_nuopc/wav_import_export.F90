@@ -51,7 +51,6 @@ contains
 !===============================================================================
 
   subroutine advertise_fields(importState, ExportState, flds_scalar_name, rc)
-
     ! input/output variables
     type(ESMF_State)               :: importState
     type(ESMF_State)               :: exportState
@@ -85,6 +84,7 @@ contains
     call fldlist_add(fldsToWav_num, fldsToWav, 'Sa_u10m'    )
     call fldlist_add(fldsToWav_num, fldsToWav, 'Sa_v10m'    )
 #endif
+
     if (wav_coupling_to_cice) then
        call fldlist_add(fldsToWav_num, fldsToWav, 'Si_thick'   )
        call fldlist_add(fldsToWav_num, fldsToWav, 'Si_floediam')
@@ -324,13 +324,12 @@ contains
           ! set mask using u-wind field if merge_import; all import fields
           ! will have same missing overlap region
           ! import_mask memory will be allocate in set_importmask
-          call set_importmask(importState, clock, trim(uwnd), import_mask, vm, rc)
+          call set_importmask(importState, clock, trim(uwnd), vm, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           allocate(wxdata(nx*ny))
           allocate(wydata(nx*ny))
           call readfromfile('WND', wxdata, wydata, time0, timen, rc)
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
           if (dbug_flag > 10) then
              call check_globaldata(gcomp, 'wxdata', wxdata, rc)
              if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -342,7 +341,7 @@ contains
        end if
 
        ! atm u wind
-       WX0(:,:) = def_value   
+       WX0(:,:) = def_value
        WXN(:,:) = def_value
        if (state_fldchk(importState, trim(uwnd))) then
           call SetGlobalInput(importState, trim(uwnd), vm, data_global, rc)
@@ -367,7 +366,7 @@ contains
        end if
 
        ! atm v wind
-       WY0(:,:) = def_value   
+       WY0(:,:) = def_value
        WYN(:,:) = def_value
        if (state_fldchk(importState, trim(vwnd))) then
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -393,7 +392,7 @@ contains
        end if
 
        ! air temp - ocn temp
-       DT0(:,:) = def_value   
+       DT0(:,:) = def_value
        DTN(:,:) = def_value
        if ((state_fldchk(importState, 'So_t')) .and. (state_fldchk(importState, 'Sa_tbot'))) then
           allocate(data_global2(nx*ny))
@@ -411,14 +410,11 @@ contains
           end do
           deallocate(data_global2)
        end if
-
        ! Deallocate memory for merge_import
        if (merge_import) then
-          deallocate(import_mask)
           deallocate(wxdata)
           deallocate(wydata)
        end if
-
     end if
 
     ! ---------------
@@ -943,7 +939,6 @@ contains
 
    end if
 #endif
-
     if (dbug_flag > 5) then
        call state_diagnose(exportState, 'at export ', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -982,6 +977,7 @@ contains
   end subroutine fldlist_add
 
   !===============================================================================
+
   subroutine fldlist_realize(state, fldList, numflds, flds_scalar_name, flds_scalar_num, mesh, tag, rc)
 
     use NUOPC, only : NUOPC_IsConnected, NUOPC_Realize
@@ -1254,6 +1250,7 @@ contains
     real          :: tauwx, tauwy, cd, z0, fmeanws, dlwmean
     logical       :: llws(nspec)
     logical, save :: firstCall = .true.
+
     !----------------------------------------------------------------------
 
     jsea_loop: do jsea = 1,nseal
@@ -1441,6 +1438,7 @@ contains
     real(r4)          :: global_input(nx*ny)
     real(r8), pointer :: dataptr(:)
     character(len=*), parameter :: subname = '(wav_import_export:setGlobalInput)'
+
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1462,7 +1460,7 @@ contains
   end subroutine SetGlobalInput
 
   !====================================================================================
-  subroutine set_importmask(importState, clock, fldname, import_mask, vm, rc)
+  subroutine set_importmask(importState, clock, fldname, vm, rc)
 
     use w3gdatmd, only: nseal, mapsta, mapfs, mapsf, nx, ny
     use w3odatmd, only: naproc, iaproc
@@ -1472,7 +1470,6 @@ contains
     type(ESMF_Clock) , intent(in)  :: clock
     character(len=*) , intent(in)  :: fldname
     type(ESMF_VM)    , intent(in)  :: vm
-    real(r4)         , intent(out) :: import_mask(nx*ny)
     integer          , intent(out) :: rc
 
     ! local variables
@@ -1574,6 +1571,7 @@ contains
     real(r8), pointer               :: dataptr1d(:)
     real(r8)                        :: fillValue = 9.99e20
     character(len=*), parameter :: subname = '(wav_import_export:check_globaldata)'
+
     !---------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1581,7 +1579,6 @@ contains
 
     call ESMF_GridCompGet(gcomp, importState=importstate, clock=clock, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
     ! use next time; the NUOPC clock is not updated until the end of the time interval
     call ESMF_ClockGetNextTime(clock, nextTime=nexttime, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1623,7 +1620,6 @@ contains
     if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine check_globaldata
-
   !========================================================================
   subroutine readfromfile (idfld, wxdata, wydata, time0, timen, rc)
 
@@ -1711,5 +1707,4 @@ contains
     if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
   end subroutine readfromfile
-
 end module wav_import_export

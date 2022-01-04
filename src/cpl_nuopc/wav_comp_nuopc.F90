@@ -490,7 +490,6 @@ contains
     ! the units since they will be opened within W3INIT.
     ! By default, unit numbers between 50 and 99 are scanned to find an
     ! unopened unit number
-
     nds(1) = stdout
     nds(2) = stdout
     nds(3) = stdout
@@ -696,7 +695,7 @@ contains
   subroutine DataInitialize(gcomp, rc)
 
     use wav_import_export, only : state_getfldptr, state_fldchk
-    use wav_import_export, only : calcRoughl 
+    use wav_import_export, only : calcRoughl
     use wav_shr_mod      , only : wav_coupling_to_cice
     use w3gdatmd         , only : nx, ny
 
@@ -1000,7 +999,7 @@ contains
     if (outfreq .gt. 0) then
        ! output every outfreq hours if appropriate
       if( mod(hh, outfreq) == 0 ) then
-       histwr = .true. 
+       histwr = .true.
       endif
     endif
     if (.not. histwr) then
@@ -1075,6 +1074,7 @@ contains
     character(len=128)       :: name
     integer                  :: alarmcount
     character(len=*),parameter :: subname=trim(modName)//':(ModelSetRunClock) '
+
     !-------------------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1247,13 +1247,13 @@ contains
 
     ! input/output variables
     type(ESMF_GridComp)   :: gcomp
-    integer , intent(in)  :: ntrace(:) 
+    integer , intent(in)  :: ntrace(:)
     integer , intent(in)  :: mpi_comm
     integer , intent(in)  :: dtime_sync
     integer , intent(out) :: rc
 
     ! local variables
-    integer                        :: ierr 
+    integer                        :: ierr
     integer                        :: unitn  ! namelist unit number
     integer                        :: shrlogunit
     logical                        :: isPresent, isSet
@@ -1338,7 +1338,7 @@ contains
     ! ww3 read initialization occurs in w3iors (which is called by initmd in module w3initmd)
     ! ww3 always starts up from a 'restart' file type
     ! For a startup (including hybrid) or branch run the restart file is obtained from 'initfile'
-    ! For a continue run, the restart filename upon read is created from the time(1:2) array 
+    ! For a continue run, the restart filename upon read is created from the time(1:2) array
     ! flgr2 is flags for coupling output, not ready yet so keep .false.
     ! 1 is model number
     ! IsMulti does not appear to be used, setting to .false.
@@ -1347,7 +1347,6 @@ contains
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 
     if (dbug_flag  > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
-
   end subroutine waveinit_cesm
 #endif
 
@@ -1385,7 +1384,6 @@ contains
          npts, x, y, pnames, iprt, prtfrm, mpi_comm )
 
     if (dbug_flag > 5) call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
-
   end subroutine waveinit_ufs
 #endif
 
