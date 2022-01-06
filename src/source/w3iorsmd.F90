@@ -923,7 +923,11 @@
         !----------------------------------------------
 
         ! create local lread logical for clarity
-        lread = (lwrite == .false.)
+        if (lwrite) then
+           lread = .false.
+        else
+           lread = .true.
+        end if
 
         ! determine restart filename
         if (lread .and. runtype /= 'continue') then
