@@ -154,8 +154,6 @@ module wav_comp_nuopc
   private :: ModelAdvance
   private :: ModelFinalize
 
-  integer :: stdout
-
   include "mpif.h"
 
   !--------------------------------------------------------------------------
