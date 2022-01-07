@@ -151,7 +151,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS, ONLY : GRAV
+      USE CONSTANTS, ONLY : GRAV
 !
       IMPLICIT NONE
 !/
@@ -238,7 +238,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS, ONLY : GRAV
+      USE CONSTANTS, ONLY : GRAV
 !
       IMPLICIT NONE
 !/
@@ -393,7 +393,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS, ONLY : GRAV, PI
+      USE CONSTANTS, ONLY : GRAV, PI
 !!/S      USE W3SERVMD, ONLY: STRACE
 !
       IMPLICIT NONE
@@ -510,7 +510,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS, ONLY : GRAV
+      USE CONSTANTS, ONLY : GRAV
 !
       IMPLICIT NONE
 !/
@@ -656,7 +656,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: TPI
+      USE CONSTANTS, ONLY: TPI
       USE W3ODATMD,  ONLY: NDSE
       USE W3SERVMD,  ONLY: EXTCDE
       USE W3GDATMD, ONLY: NK, IICEHDISP, IICEDDISP, IICEFDISP, IICEHMIN
@@ -906,7 +906,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY: DWAT, TPI, GRAV
+      USE CONSTANTS, ONLY: DWAT, TPI, GRAV
       USE W3GDATMD, ONLY: NK
 !/
       IMPLICIT NONE

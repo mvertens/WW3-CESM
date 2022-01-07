@@ -160,7 +160,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, TH
       USE W3ODATMD, ONLY: WSCUT, FLCOMB
@@ -1051,7 +1051,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3DISPMD, ONLY: WAVNU1
 !
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, DTH, SIG, DSII, DSIP,       &

@@ -233,19 +233,20 @@
       USE W3GDATMD, ONLY: NX, NY, NSEA, NSEAL, NSPEC, MAPSTA, MAPST2, &
                           GNAME, FILEXT, GTYPE, UNGTYPE
       USE W3TRIAMD, ONLY: SETUGIOBP
-      USE W3WDATMD  !HK why no only?
+      USE W3WDATMD  
       USE W3ODATMD, ONLY: NDSE, NDST, IAPROC, NAPROC, NAPERR, NAPRST, &
                           IFILE => IFILE4, FNMPRE, NTPROC, IOSTYP
       USE W3ODATMD, ONLY: NRQRS, NBLKRS, RSBLKS, IRQRS, IRQRSS, VAAUX
-      USE W3ADATMD, ONLY: MPI_COMM_WCMP, LAMULT !HK
+      USE W3ADATMD, ONLY: MPI_COMM_WCMP
 !/
       USE W3SERVMD, ONLY: EXTCDE
-      USE W3CONSTANTS, only: LPDLIB
+      USE CONSTANTS, only: LPDLIB
       USE W3PARALL, ONLY: INIT_GET_ISEA, INIT_GET_JSEA_ISPROC
       USE W3GDATMD, ONLY: NK, NTH
-      !HK CESM specific use statements
-      use shr_sys_mod, only : shr_sys_abort
-      use w3cesmmd   , only : casename, initfile, runtype, stdout, inst_suffix !HK
+#ifdef CESMCOUPLED
+      USE W3ADATMD   , ONLY : LAMULT
+      USE WAV_SHR_MOD, ONLY : RUNTYPE
+#endif
 !!!!!/PDLIB    USE PDLIB_FIELD_VEC!, only : UNST_PDLIB_READ_FROM_FILE, UNST_PDLIB_WRITE_TO_FILE
 !
       IMPLICIT NONE
@@ -284,10 +285,6 @@
       CHARACTER(LEN=256)      :: FNAME
       CHARACTER(LEN=26)       :: IDTST
       CHARACTER(LEN=30)       :: TNAME
-      ! QL, 150629, for restart file name
-      INTEGER                 :: YY,MM,DD,HH,MN,SS,TOTSEC
-      CHARACTER(LEN=256)      :: ERROR_MSG
-      LOGICAL                 :: EXISTS ! if the file exists or not
 !/
 !/ ------------------------------------------------------------------- /
 !/
@@ -347,84 +344,49 @@
       WRITEBUFF(:) = 0.
 !
 ! open file ---------------------------------------------------------- *
-!--- HK --- want to use cesm restarts
-!      I      = LEN_TRIM(FILEXT)
-      J      = LEN_TRIM(FNMPRE)
-!
-!      IF ( IFILE.EQ.0 ) THEN
-!          FNAME  = 'restart.'//FILEXT(:I)
-!        ELSE
-!          FNAME  = 'restartNNN.'//FILEXT(:I)
-!          IF ( WRITE .AND. IAPROC.EQ.NAPRST )                         &
-!               WRITE (FNAME(8:10),'(I3.3)') IFILE
-!        END IF
-!--- HK end
-      IFILE  = IFILE + 1
-!
 
-!-- HK do we need this? 
       IF(NDST.EQ.NDSR)THEN
          IF ( IAPROC .EQ. NAPERR )                                    &
             WRITE(NDSE,'(A,I8)')'UNIT NUMBERS OF RESTART FILE AND '&
             //'TEST OUTPUT ARE THE SAME : ',NDST
          CALL EXTCDE ( 15 )
       ENDIF
-! -- HK? end
 
-! -- HK CESM restart --
-      YY =  TIME(1)/10000
-      MM = (TIME(1)-YY*10000)/100
-      DD = (TIME(1)-YY*10000-MM*100)
-      HH = TIME(2)/10000
-      MN = (TIME(2)-HH*10000)/100
-      SS = (TIME(2)-HH*10000-MN*100)
-      TOTSEC = HH*3600+MN*60+SS
+#ifdef CESMCOUPLED
+      call CESM_REST_FILENAME(WRITE, FNAME)
+      IFILE  = IFILE + 1
 
-      ! Open and read/write file
-      if (len_trim(inst_suffix) > 0) then
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5)') &
-              trim(CASENAME)//&
-              &'.ww3'//trim(inst_suffix)//'.r.',YY,'-',MM,'-',DD,'-',TOTSEC
-      else
-         WRITE(FNAME,'(A,I4.4,A,I2.2,A,I2.2,A,I5.5)') &
-              trim(CASENAME)//'.ww3.r.',YY,'-',MM,'-',DD,'-',TOTSEC
-      ENDIF
-! -- HK end --
+      IF ( WRITE ) THEN
+          IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )        &
+          OPEN (NDSR,FILE=FNAME,FORM='UNFORMATTED',       &
+                ACCESS='STREAM',ERR=800,IOSTAT=IERR)
+      ELSE  ! READ
+         OPEN (NDSR, FILE=FNAME, FORM='UNFORMATTED',          &
+               ACCESS='STREAM',ERR=800,IOSTAT=IERR,           &
+               STATUS='OLD',ACTION='READ')
+       END IF
+#else
+      I      = LEN_TRIM(FILEXT)
+      J      = LEN_TRIM(FNMPRE)
+      IF ( IFILE.EQ.0 ) THEN
+          FNAME  = 'restart.'//FILEXT(:I)
+        ELSE
+          FNAME  = 'restartNNN.'//FILEXT(:I)
+          IF ( WRITE .AND. IAPROC.EQ.NAPRST )                         &
+               WRITE (FNAME(8:10),'(I3.3)') IFILE
+        END IF
+      IFILE  = IFILE + 1
 
-! -- HK modified for cesm
       IF ( WRITE ) THEN
           IF ( .NOT.IOSFLG .OR. IAPROC.EQ.NAPRST )                    &
-          OPEN (NDSR,FILE=FNAME,FORM='UNFORMATTED',       & !HK 
+          OPEN (NDSR,FILE=FNMPRE(:J)//FNAME,FORM='UNFORMATTED',       &
                 ACCESS='STREAM',ERR=800,IOSTAT=IERR)
-                !HK previous version was direct: ACCESS='DIRECT',RECL=LRECL,ERR=800,IOSTAT=IERR) !HK
-          IF ( IAPROC .EQ. NAPERR ) then
-             WRITE (NDSE,*) ' wrote restart file ',trim(FNAME)
-          end IF
-
-      ELSE  ! READ
-          !OPEN (NDSR,FILE=FNMPRE(:J)//FNAME,FORM='UNFORMATTED',       &
-          !      ACCESS='STREAM',ERR=800,IOSTAT=IERR,                  &
-          !      STATUS='OLD',ACTION='READ')
-         if (runtype /= 'continue') then
-            FNAME = INITFILE
-         end if
-         ! initial file MUST exist, if not exit
-         inquire( file=FNAME, exist=exists)
-         if ( exists ) then
-            IF ( IAPROC .EQ. NAPERR ) then
-               WRITE (NDSE,*) ' reading initial file ',trim(FNAME)
-            end IF
-            OPEN (NDSR, FILE=FNAME, FORM='UNFORMATTED',          &
-                 !ACCESS='DIRECT',RECL=LRECL,ERR=800,IOSTAT=IERR, &
-                 ACCESS='STREAM',ERR=800,IOSTAT=IERR,                  &
-                 STATUS='OLD',ACTION='READ')
-         ELSE
-            error_msg = "required initial file " // trim(FNAME) // "does not exist"
-            call shr_sys_abort(error_msg)
-         END IF
-      END IF
-
-! -- HK end --
+        ELSE
+          OPEN (NDSR,FILE=FNMPRE(:J)//FNAME,FORM='UNFORMATTED',       &
+                ACCESS='STREAM',ERR=800,IOSTAT=IERR,                  &
+                STATUS='OLD',ACTION='READ')
+        END IF
+#endif
 !
 ! test info ---------------------------------------------------------- *
 !
@@ -496,6 +458,7 @@
               END IF
             ELSE
               READ (NDSR,POS=RPOS,ERR=802,IOSTAT=IERR) TTIME
+#ifdef CESMCOUPLED
               if (runtype == 'branch' .or. runtype == 'continue') then
                 IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
                     IF ( IAPROC .EQ. NAPERR )                           &
@@ -503,6 +466,13 @@
                     CALL EXTCDE ( 20 )
                   END IF
               end if
+#else
+              IF (TIME(1).NE.TTIME(1) .OR. TIME(2).NE.TTIME(2)) THEN
+                  IF ( IAPROC .EQ. NAPERR )                           &
+                      WRITE (NDSE,906) TTIME, TIME
+                  CALL EXTCDE ( 20 )
+                END IF
+#endif
             END IF
 !
         END IF
@@ -933,6 +903,72 @@
 !/ End of W3IORS ----------------------------------------------------- /
 !/
       END SUBROUTINE W3IORS
+!/ ------------------------------------------------------------------- /
+#ifdef CESMCOUPLED
+      SUBROUTINE CESM_REST_FILENAME(LWRITE, FNAME) 
+
+        USE WAV_SHR_MOD , ONLY : CASENAME, INITFILE, INST_SUFFIX 
+        USE WAV_SHR_MOD , ONLY : RUNTYPE, STDOUT, ROOT_TASK
+        USE W3WDATMD    , ONLY : TIME
+        USE W3SERVMD    , ONLY : EXTCDE
+
+        ! input/output variables
+        logical, intent(in)           :: lwrite
+        character(len=*), intent(out) :: fname
+
+        ! local variables
+        integer :: yy,mm,dd,hh,mn,ss,totsec
+        logical :: exists
+        logical :: lread
+        !----------------------------------------------
+
+        ! create local lread logical for clarity
+        if (lwrite) then
+           lread = .false.
+        else
+           lread = .true.
+        end if
+
+        ! determine restart filename
+        if (lread .and. runtype /= 'continue') then
+           fname = initfile
+        else
+           yy =  time(1)/10000
+           mm = (time(1)-yy*10000)/100
+           dd = (time(1)-yy*10000-mm*100)
+           hh = time(2)/10000
+           mn = (time(2)-hh*10000)/100
+           ss = (time(2)-hh*10000-mn*100)
+           totsec = hh*3600+mn*60+ss
+
+           if (len_trim(inst_suffix) > 0) then
+              write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                   trim(casename)//'.ww3'//trim(inst_suffix)//'.r.',yy,'-',mm,'-',dd,'-',totsec
+           else
+              write(fname,'(a,i4.4,a,i2.2,a,i2.2,a,i5.5)') &
+                   trim(casename)//'.ww3.r.',yy,'-',mm,'-',dd,'-',totsec
+           endif
+        end if
+
+        ! check that if read the file exists
+        if (lread) then
+           inquire( file=fname, exist=exists)
+           if (.not. exists ) then
+              CALL EXTCDE (60, MSG="required initial/restart file " // trim(fname) // "does not exist")
+           end if
+        end if
+
+        ! write out filename to stdout
+        if ( root_task ) then
+           if (lwrite) then
+              write (stdout,'(a)') ' writing restart file '//trim(fname)
+           else
+              write (stdout,'(a)') ' reading initial/restart file '//trim(fname)
+           end if
+        end if
+
+      end subroutine cesm_rest_filename
+#endif
 !/
 !/ End of module W3IORSMD -------------------------------------------- /
 !/

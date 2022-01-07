@@ -967,7 +967,7 @@
       FLST   = IDFLD.EQ.'WNS'
  
       IF ( .NOT. PRESENT(FLAGSC) ) THEN
-        FLCOUPL=FLAGSC_DEFAULT !HK default is not from coupler
+        FLCOUPL=FLAGSC_DEFAULT 
       ELSE
         FLCOUPL=FLAGSC
       END IF

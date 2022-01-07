@@ -139,7 +139,7 @@
 !
 !/ ------------------------------------------------------------------- /
 !/
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD, ONLY: NK, NTH, NSPEC, SDBC1, SDBC2, FDONLY, FSSOURCE, DDEN
       USE W3ODATMD, ONLY: NDST
       USE W3GDATMD, ONLY: SIG

@@ -284,7 +284,6 @@
 !      FLIWND    Log.  Public   Flag for initialization of model
 !                               based on wind.
 !      AINIT(2)  Log.  Public   Flag for array initialization.  
-!                               HK TODO AINIT vs. AINIT2?  EF vs XEF
 !      FL_ALL    Log.  Public   Flag for all/partial  initialization.
 !     ----------------------------------------------------------------
 !
@@ -373,7 +372,6 @@
 !
 ! Output fields group 3)
 !
-!HK EF is in output field group 3
         REAL, POINTER         ::  EF(:,:),  TH1M(:,:),  STH1M(:,:),   &
                                   TH2M(:,:),  STH2M(:,:) !, WN(:,:)
         REAL, POINTER         ::  XEF(:,:),  XTH1M(:,:),  XSTH1M(:,:),&
@@ -447,16 +445,14 @@
         REAL, POINTER         ::  USERO(:,:)
         REAL, POINTER         :: XUSERO(:,:)
 
-!HK---QL output fileds for Langmuir mixing---
-!HK TODO what group?
-        ! QL, 150525, USSX, USSY, LANGMT, LAPROJ, LASL, LASLPJ, 
-        !             ALPHAL, ALPHALS
-        ! QL, 160530, LAMULT
+#ifdef CESMCOUPLED
+!
+! output fileds for Langmuir mixing
+!
         REAL, POINTER         :: LANGMT(:), LAPROJ(:), LASL(:),       &
                                  LASLPJ(:), LAMULT(:), ALPHAL(:),     &
                                  ALPHALS(:), USSXH(:), USSYH(:)
-!HK------------------------------------------
-
+#endif
 !
 ! Spatial derivatives
 !
@@ -511,13 +507,11 @@
 !/
 !/ Data aliases for structure WADAT(S)
 !/
-      ! QL, 150525, USSX, USSY, LANGMT, LAPROJ, LASL, LASLPJ, 
-      !             ALPHAL, ALPHALS
-      ! QL, 160530, LAMULT
+#ifdef CESMCOUPLED
      REAL, POINTER           :: LANGMT(:), LAPROJ(:), ALPHAL(:),      &
                                 ALPHALS(:), LAMULT(:), LASL(:),       &
-                                LASLPJ(:), USSXH(:), USSYH(:) !HK
-
+                                LASLPJ(:), USSXH(:), USSYH(:) 
+#endif
       REAL, POINTER           :: CG(:,:), WN(:,:)
       REAL, POINTER           :: IC3WN_R(:,:), IC3WN_I(:,:), IC3CG(:,:)
 !
@@ -804,7 +798,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS, ONLY : LPDLIB
+      USE CONSTANTS, ONLY : LPDLIB
       USE W3GDATMD, ONLY: NGRIDS, IGRID, W3SETG, NK, NX, NY, NSEA,    &
                           NSEAL, NSPEC, NTH, E3DF, P2MSF, US3DF,      &
                           USSPF, GTYPE, UNGTYPE
@@ -912,10 +906,7 @@
                  WADATS(IMOD)%HCMAXE(NSEALM),                           &
                  WADATS(IMOD)%HCMAXD(NSEALM), WADATS(IMOD)%QP(NSEALM),  &
                  WADATS(IMOD)%WBT(NSEALM),                              &
-!HK ---- lamult ----
-      ! QL, 150525, USSX, USSY, LANGMT, LAPROJ, LASL, LASLPJ, 
-      !             ALPHAL, ALPHALS
-      ! QL, 160530, LAMULT
+#ifdef CESMCOUPLED
                  WADATS(IMOD)%USSXH(NSEALM)                           , &
                  WADATS(IMOD)%USSYH(NSEALM)                           , &
                  WADATS(IMOD)%LANGMT(NSEALM)                          , &
@@ -925,7 +916,7 @@
                  WADATS(IMOD)%ALPHAL(NSEALM)                          , &
                  WADATS(IMOD)%ALPHALS(NSEALM)                         , &
                  WADATS(IMOD)%LAMULT(NSEALM)                          , &
-!HK ----------------
+#endif
                  STAT=ISTAT )
       CHECK_ALLOC_STATUS ( ISTAT )
 !
@@ -1060,7 +1051,6 @@
 !
 ! 6) Wave-ocean layer
 !
-!print*, 'HK NSEALM, NXXX', NSEALM, NXXX
       ALLOCATE ( WADATS(IMOD)%SXX   (NSEALM) ,                        &
                  WADATS(IMOD)%SYY   (NSEALM) ,                        &
                  WADATS(IMOD)%SXY   (NSEALM) ,                        &
@@ -1315,7 +1305,6 @@
 !  1. Purpose :
 !
 !     Version of W3DIMX for extended ouput arrays only.
-! HK TODO extended ouput arrays - can we just switch this on?
 !
 ! 10. Source code :
 !
@@ -2505,7 +2494,6 @@
           QP     => WADATS(IMOD)%QP
           WBT    => WADATS(IMOD)%WBT
 !
-!HK this is EF
           EF     => WADATS(IMOD)%EF
           TH1M   => WADATS(IMOD)%TH1M
           STH1M  => WADATS(IMOD)%STH1M
@@ -2584,12 +2572,9 @@
 !
           WN     => WADATS(IMOD)%WN
 
-!HK----- lamult -----
-          ! QL, 150525, USSX, USSY, LANGMT, LAPROJ, LASL, LASLPJ, 
-          !             ALPHAL, ALPHALS
-          ! QL, 160530, LAMULT
-          !USSX   => WADATS(IMOD)%USSX !HK these are already set
-          !USSY   => WADATS(IMOD)%USSY
+#ifdef CESMCOUPLED
+          !USSX   => WADATS(IMOD)%USSX ! this is already set
+          !USSY   => WADATS(IMOD)%USSY ! this is already set
           LANGMT => WADATS(IMOD)%LANGMT
           LAPROJ => WADATS(IMOD)%LAPROJ
           LASL   => WADATS(IMOD)%LASL
@@ -2599,9 +2584,7 @@
           USSXH  => WADATS(IMOD)%USSXH
           USSYH  => WADATS(IMOD)%USSYH
           LAMULT => WADATS(IMOD)%LAMULT
-
-!HK------------------
-
+#endif
 !
           IF ( FL_ALL ) THEN
 !

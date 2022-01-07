@@ -1390,7 +1390,7 @@
 !
 !/ ------------------------------------------------------------------- /
       USE W3SERVMD, ONLY: EXTCDE
-  USE W3CONSTANTS, ONLY: RADE
+  USE CONSTANTS, ONLY: RADE
 !
       IMPLICIT NONE
 !
@@ -1649,10 +1649,6 @@
       FLAGLL => GRIDS(IMOD)%FLAGLL
 !
       E3DF   => GRIDS(IMOD)%E3DF
-!HK  I think this gets called twice
-! E3DF(2,1):E3DF(3,1) is the 2nd dimension of E3DF
-!print*, 'HK E3DF', E3DF
-
       P2MSF  => GRIDS(IMOD)%P2MSF
       US3DF  => GRIDS(IMOD)%US3DF
       USSPF  => GRIDS(IMOD)%USSPF
@@ -2411,7 +2407,7 @@
 ! 10. Source code :
 !
 !/ ------------------------------------------------------------------- /
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       IMPLICIT NONE
 !/

@@ -33,6 +33,7 @@ def _create_namelists(case, confdir, namelist_infile, nmlgen, data_list_path):
     run_type = case.get_value("RUN_TYPE")
     config["runtype"] = run_type
     config["wav_grid"] = case.get_value("WAV_GRID")
+
     #----------------------------------------------------
     # Initialize namelist defaults
     #----------------------------------------------------
@@ -46,6 +47,19 @@ def _create_namelists(case, confdir, namelist_infile, nmlgen, data_list_path):
         nmlgen.add_default("initfile", value=filename, ignore_abs_path=True)
     else:
         nmlgen.add_default("initfile")
+
+    # Assume that ncpl base period is relative to a day
+    if case.get_value('NCPL_BASE_PERIOD') == 'day':
+        basedt = 3600 * 24
+    else:
+        expect(False, 
+               'only day base period is supported for ww3 namelist generation')
+    ncpl = case.get_value('WAV_NCPL')
+    dtcpl = basedt / int(ncpl)
+    dtmax = int(float(nmlgen.get_default('dtmax')))
+    if dtcpl%dtmax != 0:
+        expect(False,
+               'dtcpl is not a multiple of dtmax')
 
     # write diagnostic info
     logger.debug("ww3 initial conditions file is %s", nmlgen.get_value("initfile"))

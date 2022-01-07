@@ -61,7 +61,7 @@
 !
 !/ ------------------------------------------------------------------- /
  PUBLIC
-!      USE W3CONSTANTS
+!      USE CONSTANTS
 !      USE W3GDATMD, ONLY: W3NMOD, W3SETG
 !      USE W3ODATMD, ONLY: W3NOUT, W3SETO, W3DMO5
 !      USE W3IOGRMD, ONLY: W3IOGR
@@ -173,7 +173,7 @@ CONTAINS
       USE W3ODATMD, ONLY: NDSE, NDST, NDSO
       USE W3GDATMD
       USE W3SERVMD, ONLY: ITRACE, NEXTLN, EXTCDE
-      USE W3CONSTANTS, only: LPDLIB
+      USE CONSTANTS, only: LPDLIB
       USE W3ODATMD, ONLY: IAPROC
 !
       IMPLICIT NONE
@@ -776,7 +776,7 @@ CONTAINS
 !
 !/ ------------------------------------------------------------------- /
     USE W3GDATMD
-    USE W3CONSTANTS
+    USE CONSTANTS
  
          IMPLICIT NONE
 !
@@ -1665,7 +1665,7 @@ END SUBROUTINE
 !  9. Switches :
 !
 ! 10. Source code :
-      USE W3CONSTANTS
+      USE CONSTANTS
       USE W3GDATMD, ONLY : TRIGP, NTRI, NX, NSEA, MAPFS, CLATIS, &
                            MAPSTA, ANGLE, FLAGLL,  IOBP, IEN, TRIA, NSEAL, NTRI
       USE W3ADATMD, ONLY : NSEALM
@@ -1883,7 +1883,7 @@ END SUBROUTINE
 !
 !/
 !
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3GDATMD, ONLY: NX, NTRI, TRIGP
       USE W3ODATMD, ONLY: IAPROC
@@ -2319,7 +2319,7 @@ END SUBROUTINE
 !
 !/ ------------------------------------------------------------------- /
 !
-        USE W3CONSTANTS, ONLY : LPDLIB
+        USE CONSTANTS, ONLY : LPDLIB
         USE W3GDATMD, ONLY : NX, IOBP, CCON, NSEAL, IOBDP, IE_CELL, IOBDP, TRIGP
         IMPLICIT NONE
 !/
@@ -2407,7 +2407,7 @@ END SUBROUTINE
 !/ ------------------------------------------------------------------- /
 !/
 !
-      USE W3CONSTANTS
+      USE CONSTANTS
 !
       USE W3GDATMD, ONLY: NX, NY, NSEA, MAPFS,                        &
                           NK, NTH, DTH, XFR, MAPSTA, COUNTRI,         &
