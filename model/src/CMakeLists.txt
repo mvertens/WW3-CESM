@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.10)
 project(wav Fortran)
 
 message("Using CIME in ${CIMEROOT} with compiler ${COMPILER}")
+include(${CASEROOT}/Macros.cmake)
+if (MPILIB STREQUAL mpi-serial)
+  set(CMAKE_Fortran_COMPILER ${SFC})
+  set(CMAKE_C_COMPILER ${SCC})
+else()
+  set(CMAKE_Fortran_COMPILER ${MPIFC})
+  set(CMAKE_C_COMPILER ${MPICC})
+endif()
+set(CMAKE_Fortran_FLAGS "${FFLAGS} ${CPPDEFS} -I${LIBROOT}/include -I${LIBROOT}/finclude -I${LIBROOT}/nuopc/esmf/${NINST_VALUE}/include")
+add_compile_definitions(CESMCOUPLED)
 
 # Set ESMF_F90COMPILEPATHS
 # convert esmf.mk makefile variables to cmake variables until ESMF
