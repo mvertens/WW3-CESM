@@ -91,9 +91,6 @@ foreach(FILE ${SRCFILES})
   endif()
 endforeach()
 
-# Note: PROJECT_BINARY_DIR is where cmake is called from
-# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-
 message("CMAKE_CURRENT_BINARY_DIR is ${CMAKE_CURRENT_BINARY_DIR}")
 message("PROJECT_BINARY_DIR is ${PROJECT_BINARY_DIR}")
 
