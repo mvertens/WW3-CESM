@@ -134,7 +134,7 @@ module wav_comp_nuopc
   use wav_import_export     , only : advertise_fields, realize_fields
   use wav_shr_mod           , only : state_diagnose, state_getfldptr, state_fldchk
   use wav_shr_mod           , only : chkerr, state_setscalar, state_getscalar, alarmInit, ymd2date
-  use wav_shr_mod           , only : runtype, merge_import, dbug_flag
+  use wav_shr_mod           , only : runtype, merge_import, dbug_flag, wav_coupling_to_cice
   use w3odatmd              , only : nds, iaproc, napout
   use wav_shr_mod           , only : casename, multigrid, inst_suffix, inst_index
   use wav_shr_mod           , only : time_origin, calendar_name, elapsed_secs
@@ -382,12 +382,19 @@ contains
     multigrid = .false.
     call NUOPC_CompAttributeGet(gcomp, name='multigrid', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    if (isPresent .and. isSet) multigrid=(trim(cvalue)=="true")
+    if (isPresent .and. isSet) multigrid = (trim(cvalue)=="true")
     write(logmsg,'(A,l)') trim(subname)//': Wave multigrid setting is ',multigrid
     call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_INFO)
 
     call advertise_fields(importState, exportState, flds_scalar_name, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    wav_coupling_to_cice = .false.
+    call NUOPC_CompAttributeGet(gcomp, name='wavice_coupling', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent .and. isSet) wav_coupling_to_cice = (trim(cvalue)=="true")
+    write(logmsg,'(A,l)') trim(subname)//': Wave coupling to cice is ',wav_coupling_to_cice
+    call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_INFO)
 
     call ESMF_LogWrite(trim(subname)//' done', ESMF_LOGMSG_INFO)
 
